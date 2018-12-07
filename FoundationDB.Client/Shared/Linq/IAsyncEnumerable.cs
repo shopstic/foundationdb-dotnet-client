@@ -28,14 +28,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #if !USE_SHARED_FRAMEWORK
 
-namespace Doxense.Linq
+#if !NATIVE_ASYNC
+
+ namespace System.Collections.Generic
 {
 	using System;
-	using System.Threading;
 	using JetBrains.Annotations;
-
-	// note: these interfaces are modeled after the IAsyncEnumerable<T> and IAsyncEnumerator<T> found in Rx
-	//TODO: if/when async enumerables are avail in C#, we would just need to either remove these interfaces, or make them implement the real stuff
 
 	/// <summary>Asynchronous version of the <see cref="System.Collections.Generic.IEnumerable{T}"/> interface, allowing elements of the enumerable sequence to be retrieved asynchronously.</summary>
 	/// <typeparam name="T">Element type.</typeparam>
@@ -46,6 +44,46 @@ namespace Doxense.Linq
 		[NotNull]
 		IAsyncEnumerator<T> GetAsyncEnumerator();
 	}
+
+}
+
+#else
+
+namespace System.Threading.Tasks
+{
+	using System.Runtime.CompilerServices;
+	using System.Threading.Tasks.Sources;
+
+	internal struct ManualResetValueTaskSourceLogic<TResult>
+	{
+		private ManualResetValueTaskSourceCore<TResult> _core;
+		public ManualResetValueTaskSourceLogic(IStrongBox<ManualResetValueTaskSourceLogic<TResult>> parent) : this() { }
+		public short Version => _core.Version;
+		public TResult GetResult(short token) => _core.GetResult(token);
+		public ValueTaskSourceStatus GetStatus(short token) => _core.GetStatus(token);
+		public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _core.OnCompleted(continuation, state, token, flags);
+		public void Reset() => _core.Reset();
+		public void SetResult(TResult result) => _core.SetResult(result);
+		public void SetException(Exception error) => _core.SetException(error);
+	}
+}
+
+namespace System.Runtime.CompilerServices
+{
+	internal interface IStrongBox<T> { ref T Value { get; } }
+}
+
+#endif
+
+namespace Doxense.Linq
+{
+	using System;
+	using System.Collections.Generic;
+	using System.Threading;
+	using JetBrains.Annotations;
+
+	// note: these interfaces are modeled after the IAsyncEnumerable<T> and IAsyncEnumerator<T> found in Rx
+	//TODO: if/when async enumerables are avail in C#, we would just need to either remove these interfaces, or make them implement the real stuff
 
 	/// <summary>Asynchronous version of the <see cref="System.Collections.Generic.IEnumerable{T}"/> interface, allowing elements of the enumerable sequence to be retrieved asynchronously.</summary>
 	public interface IConfigurableAsyncEnumerable<out T> : IAsyncEnumerable<T>

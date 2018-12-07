@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace Doxense.Linq.Async.Iterators
 {
 	using System;
+	using System.Collections.Generic;
 	using System.Threading.Tasks;
 	using Doxense.Diagnostics.Contracts;
 	using JetBrains.Annotations;
@@ -61,7 +62,7 @@ namespace Doxense.Linq.Async.Iterators
 			{
 				if (!await m_iterator.MoveNextAsync().ConfigureAwait(false))
 				{ // completed
-					return Completed();
+					return await Completed();
 				}
 
 				if (m_ct.IsCancellationRequested) break;
@@ -69,12 +70,12 @@ namespace Doxense.Linq.Async.Iterators
 				TSource current = m_iterator.Current;
 				if (!m_condition(current))
 				{ // we need to stop
-					return Completed();
+					return await Completed();
 				}
 
 				return Publish(current);
 			}
-			return Canceled();
+			return await Canceled();
 		}
 
 	}

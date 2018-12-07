@@ -87,14 +87,14 @@ namespace Doxense.Linq.Async.Iterators
 		{
 			if (m_remaining != null && m_remaining.Value <= 0)
 			{ // reached limit!
-				return Completed();
+				return await Completed();
 			}
 
 			while (!m_ct.IsCancellationRequested)
 			{
 				if (!await m_iterator.MoveNextAsync().ConfigureAwait(false))
 				{ // completed
-					return Completed();
+					return await Completed();
 				}
 				if (m_ct.IsCancellationRequested) break;
 
@@ -154,7 +154,7 @@ namespace Doxense.Linq.Async.Iterators
 				#endregion
 			}
 
-			return Canceled();
+			return await Canceled();
 		}
 
 		public override AsyncIterator<TNew> Select<TNew>(Func<TResult, TNew> selector)
@@ -316,7 +316,7 @@ namespace Doxense.Linq.Async.Iterators
 			int? remaining = m_limit;
 			int? skipped = m_offset;
 
-			using (var iterator = StartInner(ct))
+			await using (var iterator = StartInner(ct))
 			{
 				while (remaining == null || remaining.Value > 0)
 				{
@@ -383,7 +383,7 @@ namespace Doxense.Linq.Async.Iterators
 			int? remaining = m_limit;
 			int? skipped = m_offset;
 
-			using (var iterator = StartInner(ct))
+			await using (var iterator = StartInner(ct))
 			{
 				while (remaining == null || remaining.Value > 0)
 				{

@@ -29,11 +29,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace FoundationDB.Linq.Expressions
 {
 	using System;
+	using System.Collections.Generic;
 	using System.Linq.Expressions;
 	using System.Threading;
 	using System.Threading.Tasks;
 	using Doxense.Diagnostics.Contracts;
-	using Doxense.Linq;
 	using FoundationDB.Client;
 	using JetBrains.Annotations;
 

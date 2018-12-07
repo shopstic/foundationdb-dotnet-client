@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace Doxense.Linq.Async.Iterators
 {
 	using System;
+	using System.Collections.Generic;
 	using System.Threading.Tasks;
 	using Doxense.Diagnostics.Contracts;
 	using Doxense.Linq.Async.Expressions;
@@ -60,7 +61,7 @@ namespace Doxense.Linq.Async.Iterators
 			{
 				if (!await m_iterator.MoveNextAsync().ConfigureAwait(false))
 				{ // completed
-					return Completed();
+					return await Completed();
 				}
 
 				if (m_ct.IsCancellationRequested) break;
@@ -78,7 +79,7 @@ namespace Doxense.Linq.Async.Iterators
 				return Publish(current);
 			}
 
-			return Canceled();
+			return await Canceled();
 		}
 	}
 

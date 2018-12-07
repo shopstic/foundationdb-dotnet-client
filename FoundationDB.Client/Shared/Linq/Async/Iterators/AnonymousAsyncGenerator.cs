@@ -103,14 +103,15 @@ namespace Doxense.Linq.Async.Iterators
 			}
 
 			if (res.Failed) res.ThrowForNonSuccess();
-			if (res.IsEmpty) return Completed();
+			if (res.IsEmpty) return await Completed();
 			m_index = checked(index + 1);
 			return Publish(res.Value);
 		}
 
-		protected override void Cleanup()
+		protected override ValueTask Cleanup()
 		{
 			m_index = -1;
+			return default;
 		}
 	}
 }

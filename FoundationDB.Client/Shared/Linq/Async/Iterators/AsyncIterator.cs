@@ -112,7 +112,7 @@ namespace Doxense.Linq.Async.Iterators
 
 			if (m_ct.IsCancellationRequested)
 			{
-				return Canceled();
+				return await Canceled();
 			}
 
 			try
@@ -121,7 +121,7 @@ namespace Doxense.Linq.Async.Iterators
 				{
 					if (!await OnFirstAsync().ConfigureAwait(false))
 					{ // did not start at all ?
-						return Completed();
+						return await Completed();
 					}
 
 					if (Interlocked.CompareExchange(ref m_state, STATE_ITERATING, STATE_INIT) != STATE_INIT)
@@ -134,7 +134,7 @@ namespace Doxense.Linq.Async.Iterators
 			}
 			catch (Exception)
 			{
-				MarkAsFailed();
+				await MarkAsFailed();
 				throw;
 			}
 		}
@@ -258,7 +258,7 @@ namespace Doxense.Linq.Async.Iterators
 			return false;
 		}
 
-		protected bool Completed()
+		protected async ValueTask<bool> Completed()
 		{
 			if (Volatile.Read(ref m_state) == STATE_INIT)
 			{ // nothing should have been done by the iterator..
@@ -266,22 +266,22 @@ namespace Doxense.Linq.Async.Iterators
 			}
 			else if (Interlocked.CompareExchange(ref m_state, STATE_COMPLETED, STATE_ITERATING) == STATE_ITERATING)
 			{ // the iterator has done at least something, so we can clean it up
-				Cleanup();
+				await Cleanup();
 			}
 			return false;
 		}
 
 		/// <summary>Mark the current iterator as failed, and clean up the state</summary>
-		protected void MarkAsFailed()
+		protected ValueTask MarkAsFailed()
 		{
 			//TODO: store the state "failed" somewhere?
-			Dispose();
+			return DisposeAsync();
 		}
 
-		protected bool Canceled()
+		protected async ValueTask<bool> Canceled()
 		{
 			//TODO: store the state "canceled" somewhere?
-			Dispose();
+			await DisposeAsync();
 			m_ct.ThrowIfCancellationRequested(); // should throw here!
 			return false; //note: should not be reached
 		}
@@ -306,25 +306,24 @@ namespace Doxense.Linq.Async.Iterators
 			}
 		}
 
-		protected abstract void Cleanup();
+		protected abstract ValueTask Cleanup();
 
 		#endregion
 
 		#region IDisposable...
 
-		public void Dispose()
+		public ValueTask DisposeAsync()
 		{
-			Dispose(true);
-			GC.SuppressFinalize(this);
+			return DisposeAsync(true);
 		}
 
-		protected virtual void Dispose(bool disposing)
+		protected virtual async ValueTask DisposeAsync(bool disposing)
 		{
 			if (Interlocked.Exchange(ref m_state, STATE_DISPOSED) != STATE_DISPOSED)
 			{
 				try
 				{
-					Cleanup();
+					await Cleanup();
 				}
 				finally
 				{

@@ -72,7 +72,7 @@ namespace Doxense.Linq.Async.Iterators
 
 					if (!await m_iterator.MoveNextAsync().ConfigureAwait(false))
 					{ // inner completed
-						return Completed();
+						return await Completed();
 					}
 
 					if (m_ct.IsCancellationRequested) break;
@@ -102,10 +102,10 @@ namespace Doxense.Linq.Async.Iterators
 				return Publish(m_batch.Current);
 			}
 
-			return Canceled();
+			return await Canceled();
 		}
 
-		protected override void Cleanup()
+		protected override async ValueTask Cleanup()
 		{
 			try
 			{
@@ -114,7 +114,7 @@ namespace Doxense.Linq.Async.Iterators
 			finally
 			{
 				m_batch = null;
-				base.Cleanup();
+				await base.Cleanup();
 			}
 		}
 	}
@@ -161,7 +161,7 @@ namespace Doxense.Linq.Async.Iterators
 
 					if (!await m_iterator.MoveNextAsync().ConfigureAwait(false))
 					{ // inner completed
-						return Completed();
+						return await Completed();
 					}
 
 					if (m_ct.IsCancellationRequested) break;
@@ -195,10 +195,10 @@ namespace Doxense.Linq.Async.Iterators
 				return Publish(m_resultSelector(m_sourceCurrent, batch.Current));
 			}
 
-			return Canceled();
+			return await Canceled();
 		}
 
-		protected override void Cleanup()
+		protected override async ValueTask Cleanup()
 		{
 			try
 			{ // cleanup any pending batch
@@ -207,7 +207,7 @@ namespace Doxense.Linq.Async.Iterators
 			finally
 			{
 				m_batch = null;
-				base.Cleanup();
+				await base.Cleanup();
 			}
 		}
 

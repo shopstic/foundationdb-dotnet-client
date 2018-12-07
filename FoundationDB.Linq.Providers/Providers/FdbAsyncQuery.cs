@@ -26,18 +26,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #endregion
 
-using Doxense.Linq;
-
 namespace FoundationDB.Linq.Providers
 {
-	using FoundationDB.Client;
-	using FoundationDB.Linq.Expressions;
 	using System;
 	using System.Collections.Generic;
 	using System.Runtime.CompilerServices;
 	using System.Threading;
 	using System.Threading.Tasks;
 	using Doxense.Diagnostics.Contracts;
+	using Doxense.Linq;
+	using FoundationDB.Client;
+	using FoundationDB.Linq.Expressions;
 	using JetBrains.Annotations;
 
 	/// <summary>Base class for all Async LINQ queries</summary>
@@ -233,7 +232,7 @@ namespace FoundationDB.Linq.Providers
 			{
 				if (!success)
 				{
-					iterator?.Dispose();
+					if (iterator != null) iterator.DisposeAsync().GetAwaiter().GetResult(); //HACKHACK: how do we await here?
 					trans?.Dispose();
 				}
 			}
@@ -259,11 +258,11 @@ namespace FoundationDB.Linq.Providers
 
 			public T Current => m_iterator.Current;
 
-			public void Dispose()
+			public async ValueTask DisposeAsync()
 			{
 				try
 				{
-					m_iterator.Dispose();
+					await m_iterator.DisposeAsync();
 				}
 				finally
 				{

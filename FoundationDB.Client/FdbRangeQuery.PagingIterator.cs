@@ -150,7 +150,7 @@ namespace FoundationDB.Client
 
 				if (this.AtEnd)
 				{ // we already read the last batch !
-					return TaskHelpers.FromResult(Completed());
+					return Completed().AsTask();
 				}
 
 				// slower path, we need to actually read the first batch...
@@ -242,10 +242,11 @@ namespace FoundationDB.Client
 #endif
 						if (!result.IsEmpty && this.Transaction != null)
 						{
-							return Publish(result.Items);
+							return Task.FromResult(Publish(result.Items));
 						}
-						return Completed();
-					});
+						return Completed().AsTask();
+					})
+					.Unwrap();
 
 				// keep track of this operation
 				this.PendingReadTask = task;
@@ -254,7 +255,7 @@ namespace FoundationDB.Client
 
 			#endregion
 
-			protected override void Cleanup()
+			protected override ValueTask Cleanup()
 			{
 				//TODO: should we wait/cancel any pending read task ?
 				this.Chunk = null;
@@ -264,6 +265,7 @@ namespace FoundationDB.Client
 				this.RemainingSize = null;
 				this.Iteration = -1;
 				this.PendingReadTask = null;
+				return default;
 			}
 		}
 

@@ -28,13 +28,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  
 namespace FoundationDB.Linq.Expressions
 {
-	using JetBrains.Annotations;
 	using System;
+	using System.Collections.Generic;
 	using System.Linq.Expressions;
 	using System.Threading;
 	using System.Threading.Tasks;
-	using Doxense.Linq;
 	using FoundationDB.Client;
+	using JetBrains.Annotations;
 
 	/// <summary>Base class of all queries that return a sequence of elements (Ranges, Index lookups, ...)</summary>
 	/// <typeparam name="T">Type of items returned</typeparam>

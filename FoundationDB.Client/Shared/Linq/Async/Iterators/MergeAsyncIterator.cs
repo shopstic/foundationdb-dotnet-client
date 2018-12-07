@@ -78,11 +78,11 @@ namespace Doxense.Linq.Async.Iterators
 			m_resultSelector = resultSelector;
 		}
 
-		protected override Task<bool> OnFirstAsync()
+		protected override async Task<bool> OnFirstAsync()
 		{
 			if (m_remaining != null && m_remaining.Value < 0)
 			{ // empty list ??
-				return TaskHelpers.FromResult(Completed());
+				return await Completed();
 			}
 
 			// even if the caller only wants the first, we will probably need to read more than that...
@@ -107,15 +107,15 @@ namespace Doxense.Linq.Async.Iterators
 				}
 
 				m_remaining = m_limit;
-				return TaskHelpers.FromResult(iterators.Length > 0);
+				return iterators.Length > 0;
 			}
-			catch(Exception e)
+			catch(Exception)
 			{
 				// dispose already opened iterators
 				var tmp = iterators;
 				iterators = null;
-				try { Cleanup(tmp); } catch { }
-				return Task.FromException<bool>(e);
+				try { await Cleanup(tmp); } catch { }
+				throw;
 			}
 			finally
 			{
@@ -128,7 +128,7 @@ namespace Doxense.Linq.Async.Iterators
 		{
 			if (m_remaining != null && m_remaining.Value <= 0)
 			{
-				return Completed();
+				return await Completed();
 			}
 
 			int index;
@@ -145,8 +145,8 @@ namespace Doxense.Linq.Async.Iterators
 					{
 						if (!await m_iterators[i].Next.ConfigureAwait(false))
 						{ // this one is done, remove it
-							m_iterators[i].Iterator.Dispose();
-							m_iterators[i] = default(IteratorState);
+							await m_iterators[i].Iterator.DisposeAsync().ConfigureAwait(false);
+							m_iterators[i] = default;
 							continue;
 						}
 
@@ -159,7 +159,7 @@ namespace Doxense.Linq.Async.Iterators
 				// find the next value to advance
 				if (!FindNext(out index, out current))
 				{ // nothing left anymore ?
-					return Completed();
+					return await Completed().ConfigureAwait(false);
 				}
 			}
 			while(index < 0);
@@ -187,7 +187,7 @@ namespace Doxense.Linq.Async.Iterators
 			m_iterators[index].Next = m_iterators[index].Iterator.MoveNextAsync();
 		}
 
-		private static void Cleanup(IteratorState[] iterators)
+		private static async ValueTask Cleanup(IteratorState[] iterators)
 		{
 			if (iterators != null)
 			{
@@ -201,7 +201,7 @@ namespace Doxense.Linq.Async.Iterators
 						{
 							var iterator = iterators[i].Iterator;
 							iterators[i] = new IteratorState();
-							iterator.Dispose();
+							await iterator.DisposeAsync().ConfigureAwait(false);
 						}
 						catch (Exception e)
 						{
@@ -214,11 +214,11 @@ namespace Doxense.Linq.Async.Iterators
 			}
 		}
 
-		protected override void Cleanup()
+		protected override async ValueTask Cleanup()
 		{
 			try
 			{
-				Cleanup(m_iterators);
+				await Cleanup(m_iterators);
 			}
 			finally
 			{

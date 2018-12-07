@@ -99,7 +99,7 @@ namespace Doxense.Linq.Async.Iterators
 			var ft = Interlocked.Exchange(ref m_nextTask, null);
 			if (ft == null)
 			{ // read the next item from the inner iterator
-				if (m_innerHasCompleted) return Completed();
+				if (m_innerHasCompleted) return await Completed();
 				ft = m_iterator.MoveNextAsync().AsTask();
 			}
 
@@ -129,10 +129,10 @@ namespace Doxense.Linq.Async.Iterators
 
 			if (!hasMore)
 			{
-				MarkInnerAsCompleted();
+				await MarkInnerAsCompleted();
 				if (m_buffer == null || m_buffer.Count == 0)
 				{ // that was the last batch!
-					return Completed();
+					return await Completed();
 				}
 			}
 

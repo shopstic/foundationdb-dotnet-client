@@ -50,37 +50,36 @@ namespace Doxense.Linq
 
 		/// <summary>Returns an empty async sequence</summary>
 		[Pure, NotNull]
-		public static IAsyncEnumerable<T> Empty<T>()
+		public static async IAsyncEnumerable<T> Empty<T>()
 		{
-			return EmptySequence<T>.Default;
+			yield break;
 		}
 
 		/// <summary>Returns an async sequence with a single element, which is a constant</summary>
 		[Pure, NotNull]
-		public static IAsyncEnumerable<T> Singleton<T>(T value)
+		public static async IAsyncEnumerable<T> Singleton<T>(T value)
 		{
-			//note: we can't call this method Single<T>(T), because then Single<T>(Func<T>) would be ambigous with Single<Func<T>>(T)
-			return new SingletonSequence<T>(() => value);
+			yield return value;
 		}
 
 		/// <summary>Returns an async sequence which will produce a single element, using the specified lambda</summary>
 		/// <param name="lambda">Lambda that will be called once per iteration, to produce the single element of this sequene</param>
 		/// <remarks>If the sequence is iterated multiple times, then <paramref name="lambda"/> will be called once for each iteration.</remarks>
 		[Pure, NotNull, LinqTunnel]
-		public static IAsyncEnumerable<T> Single<T>([NotNull] Func<T> lambda)
+		public static async IAsyncEnumerable<T> Single<T>([NotNull] Func<T> lambda)
 		{
 			Contract.NotNull(lambda, nameof(lambda));
-			return new SingletonSequence<T>(lambda);
+			yield return lambda();
 		}
 
 		/// <summary>Returns an async sequence which will produce a single element, using the specified lambda</summary>
 		/// <param name="asyncLambda">Lambda that will be called once per iteration, to produce the single element of this sequene</param>
 		/// <remarks>If the sequence is iterated multiple times, then <paramref name="asyncLambda"/> will be called once for each iteration.</remarks>
 		[Pure, NotNull, LinqTunnel]
-		public static IAsyncEnumerable<T> Single<T>([NotNull] Func<Task<T>> asyncLambda)
+		public static async IAsyncEnumerable<T> Single<T>([NotNull] Func<Task<T>> asyncLambda)
 		{
 			Contract.NotNull(asyncLambda, nameof(asyncLambda));
-			return new SingletonSequence<T>(asyncLambda);
+			yield return await asyncLambda();
 		}
 
 		/// <summary>Returns an async sequence which will produce a single element, using the specified lambda</summary>
@@ -242,42 +241,44 @@ namespace Doxense.Linq
 
 		/// <summary>Projects each element of an async sequence into a new form.</summary>
 		[Pure, NotNull, LinqTunnel]
-		public static IAsyncEnumerable<TResult> Select<TSource, TResult>([NotNull] this IAsyncEnumerable<TSource> source, [NotNull] Func<TSource, TResult> selector)
+		public static async IAsyncEnumerable<TResult> Select<TSource, TResult>([NotNull] this IAsyncEnumerable<TSource> source, [NotNull] Func<TSource, TResult> selector)
 		{
 			Contract.NotNull(source, nameof(source));
 			Contract.NotNull(selector, nameof(selector));
 
-			if (source is AsyncIterator<TSource> iterator)
+			await foreach(var input in source)
 			{
-				return iterator.Select<TResult>(selector);
+				yield return selector(input);
 			}
-
-			return Map<TSource, TResult>(source, new AsyncTransformExpression<TSource,TResult>(selector));
 		}
 
 		/// <summary>Projects each element of an async sequence into a new form.</summary>
 		[Pure, NotNull, LinqTunnel]
-		public static IAsyncEnumerable<TResult> Select<TSource, TResult>([NotNull] this IAsyncEnumerable<TSource> source, [NotNull] Func<TSource, Task<TResult>> asyncSelector)
+		public static async IAsyncEnumerable<TResult> Select<TSource, TResult>([NotNull] this IAsyncEnumerable<TSource> source, [NotNull] Func<TSource, Task<TResult>> asyncSelector)
 		{
 			Contract.NotNull(source, nameof(source));
 			Contract.NotNull(asyncSelector, nameof(asyncSelector));
 
-			return Select<TSource, TResult>(source, TaskHelpers.WithCancellation(asyncSelector));
+			await foreach(var input in source)
+			{
+				yield return await asyncSelector(input);
+			}
 		}
 
 		/// <summary>Projects each element of an async sequence into a new form.</summary>
 		[Pure, NotNull, LinqTunnel]
-		public static IAsyncEnumerable<TResult> Select<TSource, TResult>([NotNull] this IAsyncEnumerable<TSource> source, [NotNull] Func<TSource, CancellationToken, Task<TResult>> asyncSelector)
+		public static async IAsyncEnumerable<TResult> Select<TSource, TResult>([NotNull] this IAsyncEnumerable<TSource> source, [NotNull] Func<TSource, CancellationToken, Task<TResult>> asyncSelector)
 		{
 			Contract.NotNull(source, nameof(source));
 			Contract.NotNull(asyncSelector, nameof(asyncSelector));
 
-			if (source is AsyncIterator<TSource> iterator)
-			{
-				return iterator.Select<TResult>(asyncSelector);
-			}
+			//HACKHACK: wait for async iterators to be able to obtain the cancellationtoken!
+			CancellationToken ct = default;
 
-			return Map<TSource, TResult>(source, new AsyncTransformExpression<TSource,TResult>(asyncSelector));
+			await foreach (var input in source)
+			{
+				yield return await asyncSelector(input, ct);
+			}
 		}
 
 		#endregion
@@ -286,42 +287,44 @@ namespace Doxense.Linq
 
 		/// <summary>Filters an async sequence of values based on a predicate.</summary>
 		[Pure, NotNull, LinqTunnel]
-		public static IAsyncEnumerable<TResult> Where<TResult>([NotNull] this IAsyncEnumerable<TResult> source, [NotNull] Func<TResult, bool> predicate)
+		public static async IAsyncEnumerable<TResult> Where<TResult>([NotNull] this IAsyncEnumerable<TResult> source, [NotNull] Func<TResult, bool> predicate)
 		{
 			Contract.NotNull(source, nameof(source));
 			Contract.NotNull(predicate, nameof(predicate));
 
-			if (source is AsyncIterator<TResult> iterator)
+			await foreach (var input in source)
 			{
-				return iterator.Where(predicate);
+				if (predicate(input)) yield return input;
 			}
-
-			return Filter<TResult>(source, new AsyncFilterExpression<TResult>(predicate));
 		}
 
 		/// <summary>Filters an async sequence of values based on a predicate.</summary>
 		[Pure, NotNull, LinqTunnel]
-		public static IAsyncEnumerable<T> Where<T>([NotNull] this IAsyncEnumerable<T> source, [NotNull] Func<T, Task<bool>> asyncPredicate)
+		public static async IAsyncEnumerable<T> Where<T>([NotNull] this IAsyncEnumerable<T> source, [NotNull] Func<T, Task<bool>> asyncPredicate)
 		{
 			Contract.NotNull(source, nameof(source));
 			Contract.NotNull(asyncPredicate, nameof(asyncPredicate));
 
-			return Where<T>(source, TaskHelpers.WithCancellation(asyncPredicate));
+			await foreach (var input in source)
+			{
+				if (await asyncPredicate(input)) yield return input;
+			}
 		}
 
 		/// <summary>Filters an async sequence of values based on a predicate.</summary>
 		[Pure, NotNull, LinqTunnel]
-		public static IAsyncEnumerable<TResult> Where<TResult>([NotNull] this IAsyncEnumerable<TResult> source, [NotNull] Func<TResult, CancellationToken, Task<bool>> asyncPredicate)
+		public static async IAsyncEnumerable<TResult> Where<TResult>([NotNull] this IAsyncEnumerable<TResult> source, [NotNull] Func<TResult, CancellationToken, Task<bool>> asyncPredicate)
 		{
 			Contract.NotNull(source, nameof(source));
 			Contract.NotNull(asyncPredicate, nameof(asyncPredicate));
 
-			if (source is AsyncIterator<TResult> iterator)
-			{
-				return iterator.Where(asyncPredicate);
-			}
+			//HACKHACK: wait for async iterators to be able to obtain the cancellationtoken!
+			CancellationToken ct = default;
 
-			return Filter<TResult>(source, new AsyncFilterExpression<TResult>(asyncPredicate));
+			await foreach (var input in source)
+			{
+				if (await asyncPredicate(input, ct)) yield return input;
+			}
 		}
 
 		#endregion
@@ -330,17 +333,20 @@ namespace Doxense.Linq
 
 		/// <summary>Returns a specified number of contiguous elements from the start of an async sequence.</summary>
 		[Pure, NotNull, LinqTunnel]
-		public static IAsyncEnumerable<TSource> Take<TSource>([NotNull] this IAsyncEnumerable<TSource> source, int count)
+		public static async IAsyncEnumerable<TSource> Take<TSource>([NotNull] this IAsyncEnumerable<TSource> source, int count)
 		{
 			Contract.NotNull(source, nameof(source));
 			if (count < 0) throw new ArgumentOutOfRangeException(nameof(count), count, "Count cannot be less than zero");
 
-			if (source is AsyncIterator<TSource> iterator)
+			//note: even if count == 0, we still run the source so that it can throw its errors
+			int n = 0;
+			await foreach(var input in source)
 			{
-				return iterator.Take(count);
+				if (count == 0) break;
+				yield return input;
+				++n;
+				if (n >= count) break;
 			}
-
-			return Limit<TSource>(source, count);
 		}
 
 		#endregion
@@ -349,37 +355,16 @@ namespace Doxense.Linq
 
 		/// <summary>Returns elements from an async sequence as long as a specified condition is true, and then skips the remaining elements.</summary>
 		[Pure, NotNull, LinqTunnel]
-		public static IAsyncEnumerable<TSource> TakeWhile<TSource>([NotNull] this IAsyncEnumerable<TSource> source, [NotNull] Func<TSource, bool> condition)
+		public static async IAsyncEnumerable<TSource> TakeWhile<TSource>([NotNull] this IAsyncEnumerable<TSource> source, [NotNull] Func<TSource, bool> condition)
 		{
 			Contract.NotNull(source, nameof(source));
 			Contract.NotNull(condition, nameof(condition));
 
-			if (source is AsyncIterator<TSource> iterator)
+			await foreach(var input in source)
 			{
-				return iterator.TakeWhile(condition);
+				if (!condition(input)) yield break;
+				yield return input;
 			}
-
-			return Limit<TSource>(source, condition);
-		}
-
-		[Pure, NotNull, LinqTunnel]
-		public static IAsyncEnumerable<TSource> TakeWhile<TSource>([NotNull] this IAsyncEnumerable<TSource> source, [NotNull] Func<TSource, bool> condition, out QueryStatistics<bool> stopped)
-		{
-			Contract.NotNull(source, nameof(source));
-			Contract.NotNull(condition, nameof(condition));
-
-			var signal = new QueryStatistics<bool>(false);
-			stopped = signal;
-
-			// to trigger the signal, we just intercept the condition returning false (which only happen once!)
-			bool Wrapped(TSource x)
-			{
-				if (condition(x)) return true;
-				signal.Update(true);
-				return false;
-			}
-
-			return TakeWhile(source, Wrapped);
 		}
 
 		#endregion
@@ -388,17 +373,17 @@ namespace Doxense.Linq
 
 		/// <summary>Skips the first elements of an async sequence.</summary>
 		[Pure, NotNull, LinqTunnel]
-		public static IAsyncEnumerable<TSource> Skip<TSource>([NotNull] this IAsyncEnumerable<TSource> source, int count)
+		public static async IAsyncEnumerable<TSource> Skip<TSource>([NotNull] this IAsyncEnumerable<TSource> source, int count)
 		{
 			Contract.NotNull(source, nameof(source));
 			if (count < 0) throw new ArgumentOutOfRangeException(nameof(count), count, "Count cannot be less than zero");
 
-			if (source is AsyncIterator<TSource> iterator)
+			int n = 0;
+			await foreach(var input in source)
 			{
-				return iterator.Skip(count);
+				if (n >= count) yield return input;
+				++n;
 			}
-
-			return Offset<TSource>(source, count);
 		}
 
 		#endregion
@@ -707,7 +692,7 @@ namespace Doxense.Linq
 			Contract.NotNull(aggregator, nameof(aggregator));
 
 			ct.ThrowIfCancellationRequested();
-			using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.All) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.All) : source.GetAsyncEnumerator())
 			{
 				Contract.Assert(iterator != null, "The sequence returned a null async iterator");
 
@@ -1301,7 +1286,7 @@ namespace Doxense.Linq
 			Contract.NotNull(source, nameof(source));
 			ct.ThrowIfCancellationRequested();
 
-			using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
 			{
 				return await iterator.MoveNextAsync().ConfigureAwait(false);
 			}
@@ -1314,7 +1299,7 @@ namespace Doxense.Linq
 			Contract.NotNull(predicate, nameof(predicate));
 			ct.ThrowIfCancellationRequested();
 
-			using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
 			{
 				while (await iterator.MoveNextAsync().ConfigureAwait(false))
 				{
@@ -1331,7 +1316,7 @@ namespace Doxense.Linq
 			Contract.NotNull(source, nameof(source));
 			ct.ThrowIfCancellationRequested();
 
-			using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
 			{
 				return !(await iterator.MoveNextAsync().ConfigureAwait(false));
 			}
@@ -1344,7 +1329,7 @@ namespace Doxense.Linq
 			Contract.NotNull(predicate, nameof(predicate));
 			ct.ThrowIfCancellationRequested();
 
-			using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
 			{
 				while (await iterator.MoveNextAsync().ConfigureAwait(false))
 				{

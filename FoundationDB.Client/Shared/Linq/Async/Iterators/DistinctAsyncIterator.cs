@@ -73,7 +73,7 @@ namespace Doxense.Linq.Async.Iterators
 				if (!await m_iterator.MoveNextAsync().ConfigureAwait(false))
 				{ // completed
 					m_set = null;
-					return Completed();
+					return await Completed();
 				}
 
 				if (m_ct.IsCancellationRequested) break;
@@ -88,7 +88,7 @@ namespace Doxense.Linq.Async.Iterators
 			}
 
 			m_set = null;
-			return Canceled();
+			return await Canceled();
 		}
 
 		public override async Task ExecuteAsync(Action<TSource> handler, CancellationToken ct)
@@ -100,7 +100,7 @@ namespace Doxense.Linq.Async.Iterators
 			var mode = m_mode;
 			if (mode == AsyncIterationHint.Head) mode = AsyncIterationHint.Iterator;
 
-			using (var iter = m_source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : m_source.GetAsyncEnumerator())
+			await using (var iter = m_source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : m_source.GetAsyncEnumerator())
 			{
 				var set = new HashSet<TSource>(m_comparer);
 
@@ -127,7 +127,7 @@ namespace Doxense.Linq.Async.Iterators
 			var mode = m_mode;
 			if (mode == AsyncIterationHint.Head) mode = AsyncIterationHint.Iterator;
 
-			using (var iter = m_source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : m_source.GetAsyncEnumerator())
+			await using (var iter = m_source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : m_source.GetAsyncEnumerator())
 			{
 				var set = new HashSet<TSource>(m_comparer);
 

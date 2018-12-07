@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace Doxense.Linq.Async
 {
 	using System;
+	using System.Collections.Generic;
 	using System.Threading;
 	using Doxense.Diagnostics.Contracts;
 	using JetBrains.Annotations;
@@ -69,7 +70,7 @@ namespace Doxense.Linq.Async
 			catch (Exception)
 			{
 				//make sure that the inner iterator gets disposed if something went wrong
-				inner?.Dispose();
+				inner?.DisposeAsync().GetAwaiter().GetResult(); //HACKHACK: how can we await here??
 				throw;
 			}
 		}

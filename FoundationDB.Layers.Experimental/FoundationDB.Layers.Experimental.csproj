@@ -1,7 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net461;net471</TargetFrameworks>
+    <!--<TargetFrameworks>netstandard2.0;net461;net471;netcoreapp3.0</TargetFrameworks>-->
+    <TargetFramework>netcoreapp3.0</TargetFramework>
     <RootNamespace>FoundationDB.Layers</RootNamespace>
     <AssemblyName>FoundationDB.Layers.Experimental</AssemblyName>
     <LangVersion>7.2</LangVersion>

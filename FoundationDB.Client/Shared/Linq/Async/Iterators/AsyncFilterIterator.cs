@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace Doxense.Linq.Async.Iterators
 {
 	using System;
+	using System.Collections.Generic;
 	using System.Threading;
 	using System.Threading.Tasks;
 	using Doxense.Diagnostics.Contracts;
@@ -69,15 +70,16 @@ namespace Doxense.Linq.Async.Iterators
 			return m_source.GetAsyncEnumerator();
 		}
 
-		protected void MarkInnerAsCompleted()
+		protected ValueTask MarkInnerAsCompleted()
 		{
 			m_innerHasCompleted = true;
 
 			// we don't need the inerator, so we can dispose of it immediately
-			Interlocked.Exchange(ref m_iterator, null)?.Dispose();
+			var it = Interlocked.Exchange(ref m_iterator, null);
+			return it != null ? it.DisposeAsync() : default;
 		}
 
-		protected override Task<bool> OnFirstAsync()
+		protected override async Task<bool> OnFirstAsync()
 		{
 			// on the first call to MoveNext, we have to hook up with the source iterator
 
@@ -85,16 +87,16 @@ namespace Doxense.Linq.Async.Iterators
 			try
 			{
 				iterator = StartInner(m_ct);
-				if (iterator == null) return TaskHelpers.False;
+				if (iterator == null) return false;
 				OnStarted(iterator);
-				return TaskHelpers.True;
+				return true;
 			}
 			catch (Exception)
 			{
 				// whatever happens, make sure that we released the iterator...
 				if (iterator != null)
 				{
-					iterator.Dispose();
+					await iterator.DisposeAsync();
 					iterator = null;
 				}
 				throw;
@@ -115,7 +117,7 @@ namespace Doxense.Linq.Async.Iterators
 			// override this to add custom stopping logic once the iterator has completed (for whatever reason)
 		}
 
-		protected override void Cleanup()
+		protected override async ValueTask Cleanup()
 		{
 			try
 			{
@@ -123,7 +125,7 @@ namespace Doxense.Linq.Async.Iterators
 			}
 			finally
 			{
-				MarkInnerAsCompleted();
+				await MarkInnerAsCompleted();
 			}
 		}
 

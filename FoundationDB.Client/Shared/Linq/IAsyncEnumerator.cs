@@ -26,9 +26,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #endregion
 
-#if !USE_SHARED_FRAMEWORK
+#if !USE_SHARED_FRAMEWORK && !NATIVE_ASYNC
 
-namespace Doxense.Linq
+namespace System.Collections.Generic
 {
 	using System;
 	using System.Threading.Tasks;
@@ -38,7 +38,7 @@ namespace Doxense.Linq
 
 	/// <summary>Asynchronous version of the <see cref="System.Collections.Generic.IEnumerator{T}"/> interface, allowing elements to be retrieved asynchronously.</summary>
 	/// <typeparam name="T">Element type.</typeparam>
-	public interface IAsyncEnumerator<out T> : IDisposable
+	public interface IAsyncEnumerator<out T> : IAsyncDisposable
 	{
 		/// <summary>Advances the enumerator to the next element in the sequence, returning the result asynchronously.</summary>
 		/// <returns>
@@ -49,6 +49,17 @@ namespace Doxense.Linq
 
 		/// <summary>Gets the current element in the iteration.</summary>
 		T Current { get; }
+	}
+
+}
+
+namespace System
+{
+	using System.Threading.Tasks;
+
+	public interface IAsyncDisposable
+	{
+		ValueTask DisposeAsync();
 	}
 
 }

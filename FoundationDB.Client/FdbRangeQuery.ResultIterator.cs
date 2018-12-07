@@ -155,7 +155,7 @@ namespace FoundationDB.Client
 				Debug.WriteLine("No more chunks from page iterator");
 #endif
 				m_outOfChunks = true;
-				return Completed();
+				return await Completed();
 			}
 
 			private bool ProcessNextItem()
@@ -191,11 +191,15 @@ namespace FoundationDB.Client
 
 			#endregion
 
-			protected override void Cleanup()
+			protected override async ValueTask Cleanup()
 			{
 				try
 				{
-					m_chunkIterator?.Dispose();
+					var it = m_chunkIterator;
+					if (it != null)
+					{
+						await it.DisposeAsync().ConfigureAwait(false);
+					}
 				}
 				finally
 				{

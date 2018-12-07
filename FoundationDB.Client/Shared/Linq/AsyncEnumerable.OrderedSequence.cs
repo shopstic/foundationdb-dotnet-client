@@ -95,7 +95,7 @@ namespace Doxense.Linq
 				}
 				catch (Exception)
 				{
-					enumerator?.Dispose();
+					if (enumerator != null) enumerator.DisposeAsync().GetAwaiter().GetResult(); //HACKHACK: how to we await here?
 					throw;
 				}
 			}
@@ -229,14 +229,14 @@ namespace Doxense.Linq
 				m_offset = -1;
 				m_items = null;
 				m_map = null;
-
 			}
 
 			public TSource Current => m_current;
 
-			public void Dispose()
+			public ValueTask DisposeAsync()
 			{
 				Completed();
+				return default;
 			}
 		}
 
