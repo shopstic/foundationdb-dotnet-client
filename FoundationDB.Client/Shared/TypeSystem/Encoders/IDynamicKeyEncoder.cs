@@ -37,12 +37,8 @@ namespace Doxense.Serialization.Encoders
 
 	/// <summary>Encoder that can process keys of variable size and types</summary>
 	[PublicAPI]
-	public interface IDynamicKeyEncoder
+	public interface IDynamicKeyEncoder : IKeyEncoder
 	{
-
-		/// <summary>Return the parent key encoding</summary>
-		[NotNull]
-		IKeyEncoding Encoding { get; }
 
 		#region Encoding...
 
@@ -233,7 +229,7 @@ namespace Doxense.Serialization.Encoders
 		/// <summary>Return a key range using a tuple as a prefix</summary>
 		/// <param name="prefix">Optional binary prefix that should be added before encoding the key</param>
 		/// <param name="items">Tuple of any size (0 to N)</param>
-		(Slice Begin, Slice End) ToRange(Slice prefix, IVarTuple items);
+		(Slice Begin, Slice End) ToRange<TTuple>(Slice prefix, TTuple items) where TTuple : IVarTuple;
 
 		/// <summary>Return a key range using a single element as a prefix</summary>
 		/// <typeparam name="T1">Type of the element</typeparam>

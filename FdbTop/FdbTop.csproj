@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <!--<TargetFrameworks>net461;net471;netcoreapp3.0</TargetFrameworks>-->
+    <!--<TargetFrameworks>net461;net472;netcoreapp3.0</TargetFrameworks>-->
     <TargetFramework>netcoreapp3.0</TargetFramework>
     <ProjectGuid>{A1731E5B-59B5-49E0-A9B2-E552B18FA1C6}</ProjectGuid>
     <RestorePackages>true</RestorePackages>
@@ -10,6 +10,7 @@
     <RootNamespace>FdbTop</RootNamespace>
     <AssemblyName>FdbTop</AssemblyName>
     <AssemblyOriginatorKeyFile>..\Common\foundationdb-net-client.snk</AssemblyOriginatorKeyFile>
+    <LangVersion>7.3</LangVersion>
   </PropertyGroup>
 
   <Import Project="..\Common\VersionInfo.props" />
@@ -23,6 +24,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+	  <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
 
@@ -34,6 +36,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+	  <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
 

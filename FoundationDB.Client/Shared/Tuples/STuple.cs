@@ -44,7 +44,7 @@ namespace Doxense.Collections.Tuples
 
 	/// <summary>Factory class for Tuples</summary>
 	[PublicAPI]
-	public readonly struct STuple : IVarTuple
+	public readonly struct STuple : IVarTuple, ITupleSerializable
 	{
 		//note: We cannot use 'Tuple' because it's already used by the BCL in the System namespace, and we cannot use 'Tuples' either because it is part of the namespace...
 
@@ -119,6 +119,11 @@ namespace Doxense.Collections.Tuples
 		int System.Collections.IStructuralEquatable.GetHashCode(System.Collections.IEqualityComparer comparer)
 		{
 			return 0;
+		}
+
+		void ITupleSerializable.PackTo(ref TupleWriter writer)
+		{
+			//NOP
 		}
 
 		#endregion
@@ -253,7 +258,7 @@ namespace Doxense.Collections.Tuples
 			}
 			else
 			{
-				// can mutate if passed a pre-allocated array: { var foo = new objec[123]; Create(foo); foo[42] = "bad"; }
+				// can mutate if passed a pre-allocated array: { var foo = new object[123]; Create(foo); foo[42] = "bad"; }
 				return new ListTuple(items, offset, count);
 			}
 		}
@@ -412,7 +417,7 @@ namespace Doxense.Collections.Tuples
 			return left.Equals(right);
 		}
 
-		/// <summary>Determines whether the specifield tuple instances are considered similar</summary>
+		/// <summary>Determines whether the specified tuple instances are considered similar</summary>
 		/// <param name="left">Left tuple</param>
 		/// <param name="right">Right tuple</param>
 		/// <returns>True if the tuples are considered similar; otherwise, false. If both <paramref name="left"/> and <paramref name="right"/> are null, the methods returns true;</returns>
