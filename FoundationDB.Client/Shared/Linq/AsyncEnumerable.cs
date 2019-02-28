@@ -692,7 +692,7 @@ namespace Doxense.Linq
 			Contract.NotNull(aggregator, nameof(aggregator));
 
 			ct.ThrowIfCancellationRequested();
-			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.All) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.All) : source.GetAsyncEnumerator(ct))
 			{
 				Contract.Assert(iterator != null, "The sequence returned a null async iterator");
 
@@ -1286,7 +1286,7 @@ namespace Doxense.Linq
 			Contract.NotNull(source, nameof(source));
 			ct.ThrowIfCancellationRequested();
 
-			await using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator(ct))
 			{
 				return await iterator.MoveNextAsync().ConfigureAwait(false);
 			}
@@ -1299,7 +1299,7 @@ namespace Doxense.Linq
 			Contract.NotNull(predicate, nameof(predicate));
 			ct.ThrowIfCancellationRequested();
 
-			await using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator(ct))
 			{
 				while (await iterator.MoveNextAsync().ConfigureAwait(false))
 				{
@@ -1316,7 +1316,7 @@ namespace Doxense.Linq
 			Contract.NotNull(source, nameof(source));
 			ct.ThrowIfCancellationRequested();
 
-			await using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator(ct))
 			{
 				return !(await iterator.MoveNextAsync().ConfigureAwait(false));
 			}
@@ -1329,7 +1329,7 @@ namespace Doxense.Linq
 			Contract.NotNull(predicate, nameof(predicate));
 			ct.ThrowIfCancellationRequested();
 
-			await using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator(ct))
 			{
 				while (await iterator.MoveNextAsync().ConfigureAwait(false))
 				{

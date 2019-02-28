@@ -47,7 +47,7 @@ namespace Doxense.Linq
 			private EmptySequence()
 			{ }
 
-			public IAsyncEnumerator<TSource> GetAsyncEnumerator() => this;
+			public IAsyncEnumerator<TSource> GetAsyncEnumerator(CancellationToken ct) => this;
 
 			ValueTask<bool> IAsyncEnumerator<TSource>.MoveNextAsync()
 			{
@@ -83,7 +83,7 @@ namespace Doxense.Linq
 				: this((Delegate)lambda)
 			{ }
 
-			public IAsyncEnumerator<TElement> GetAsyncEnumerator() => new Enumerator(m_lambda, CancellationToken.None);
+			public IAsyncEnumerator<TElement> GetAsyncEnumerator(CancellationToken ct) => new Enumerator(m_lambda, ct);
 
 			public IAsyncEnumerator<TElement> GetAsyncEnumerator(CancellationToken ct, AsyncIterationHint mode)
 			{

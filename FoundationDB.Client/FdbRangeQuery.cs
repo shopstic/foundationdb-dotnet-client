@@ -270,9 +270,9 @@ namespace FoundationDB.Client
 
 		#region Pseudo-LINQ
 
-		public IAsyncEnumerator<T> GetAsyncEnumerator()
+		public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken ct)
 		{
-			return this.GetAsyncEnumerator(this.Transaction.Cancellation, AsyncIterationHint.Default);
+			return this.GetAsyncEnumerator(ct, AsyncIterationHint.Default);
 		}
 
 		public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken ct, AsyncIterationHint hint)

@@ -47,7 +47,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 }
 
-#else
+#elif BUGGY_ASYNC_PREVIEW
 
 namespace System.Threading.Tasks
 {

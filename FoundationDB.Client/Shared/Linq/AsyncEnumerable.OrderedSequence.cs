@@ -81,7 +81,7 @@ namespace Doxense.Linq
 				return m_parent.GetEnumerableSorter(sorter);
 			}
 
-			public IAsyncEnumerator<TSource> GetAsyncEnumerator() => GetAsyncEnumerator(CancellationToken.None, AsyncIterationHint.Default);
+			public IAsyncEnumerator<TSource> GetAsyncEnumerator(CancellationToken ct) => GetAsyncEnumerator(ct, AsyncIterationHint.Default);
 
 			public IAsyncEnumerator<TSource> GetAsyncEnumerator(CancellationToken ct, AsyncIterationHint mode)
 			{
@@ -90,7 +90,7 @@ namespace Doxense.Linq
 				var enumerator = default(IAsyncEnumerator<TSource>);
 				try
 				{
-					enumerator = m_source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : m_source.GetAsyncEnumerator();
+					enumerator = m_source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : m_source.GetAsyncEnumerator(ct);
 					return new OrderedEnumerator<TSource>(enumerator, sorter, ct);
 				}
 				catch (Exception)

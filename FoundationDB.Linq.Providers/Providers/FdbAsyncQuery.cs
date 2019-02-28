@@ -205,7 +205,7 @@ namespace FoundationDB.Linq.Providers
 			{
 				var source = generator(sequence.Transaction);
 				Contract.Assert(source != null);
-				return source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(sequence.Transaction.Cancellation, mode) : source.GetAsyncEnumerator();
+				return source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(sequence.Transaction.Cancellation, mode) : source.GetAsyncEnumerator(sequence.Transaction.Cancellation);
 			}
 
 			//BUGBUG: how do we get a CancellationToken without a transaction?
@@ -219,7 +219,7 @@ namespace FoundationDB.Linq.Providers
 				trans = sequence.Database.BeginTransaction(ct);
 				var source = generator(trans);
 				Contract.Assert(source != null);
-				iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, mode) : source.GetAsyncEnumerator();
+				iterator = source is IConfigurableAsyncEnumerable<T> configurable ? configurable.GetAsyncEnumerator(ct, mode) : source.GetAsyncEnumerator(ct);
 
 				return new TransactionIterator(trans, iterator);
 			}

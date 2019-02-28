@@ -95,9 +95,9 @@ namespace Doxense.Linq
 				m_state = state;
 			}
 
-			public IAsyncEnumerator<T> GetAsyncEnumerator()
+			public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken ct)
 			{
-				return m_factory(m_state, CancellationToken.None);
+				return m_factory(m_state, ct);
 			}
 
 			public IAsyncEnumerator<T> GetEnumerator(CancellationToken ct, AsyncIterationHint _)
@@ -197,7 +197,7 @@ namespace Doxense.Linq
 			ct.ThrowIfCancellationRequested();
 
 			long count = 0;
-			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : source.GetAsyncEnumerator(ct))
 			{
 				Contract.Assert(iterator != null, "The underlying sequence returned a null async iterator");
 
@@ -229,7 +229,7 @@ namespace Doxense.Linq
 			ct.ThrowIfCancellationRequested();
 
 			long count = 0;
-			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : source.GetAsyncEnumerator(ct))
 			{
 				Contract.Assert(iterator != null, "The underlying sequence returned a null async iterator");
 
@@ -261,7 +261,7 @@ namespace Doxense.Linq
 			ct.ThrowIfCancellationRequested();
 
 			long count = 0;
-			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : source.GetAsyncEnumerator(ct))
 			{
 				Contract.Assert(iterator != null, "The underlying sequence returned a null async iterator");
 
@@ -290,7 +290,7 @@ namespace Doxense.Linq
 			ct.ThrowIfCancellationRequested();
 
 			long count = 0;
-			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, mode) : source.GetAsyncEnumerator(ct))
 			{
 				Contract.Assert(iterator != null, "The underlying sequence returned a null async iterator");
 
@@ -319,7 +319,7 @@ namespace Doxense.Linq
 		{
 			ct.ThrowIfCancellationRequested();
 
-			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator())
+			await using (var iterator = source is IConfigurableAsyncEnumerable<TSource> configurable ? configurable.GetAsyncEnumerator(ct, AsyncIterationHint.Head) : source.GetAsyncEnumerator(ct))
 			{
 				Contract.Assert(iterator != null, "The underlying sequence returned a null async iterator");
 

@@ -60,7 +60,7 @@ namespace Doxense.Linq.Async.Iterators
 		#region IAsyncEnumerable<TResult>...
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public IAsyncEnumerator<TResult> GetAsyncEnumerator() => GetAsyncEnumerator(CancellationToken.None, AsyncIterationHint.Default);
+		public IAsyncEnumerator<TResult> GetAsyncEnumerator(CancellationToken ct) => GetAsyncEnumerator(ct, AsyncIterationHint.Default);
 
 		public IAsyncEnumerator<TResult> GetAsyncEnumerator(CancellationToken ct, AsyncIterationHint mode)
 		{

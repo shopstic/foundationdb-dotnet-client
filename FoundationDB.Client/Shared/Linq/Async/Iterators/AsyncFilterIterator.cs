@@ -67,7 +67,7 @@ namespace Doxense.Linq.Async.Iterators
 				return configurable.GetAsyncEnumerator(m_ct, mode);
 			}
 
-			return m_source.GetAsyncEnumerator();
+			return m_source.GetAsyncEnumerator(m_ct);
 		}
 
 		protected ValueTask MarkInnerAsCompleted()
