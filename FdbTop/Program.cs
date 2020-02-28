@@ -773,7 +773,7 @@ namespace FdbTop
 
 		private static ConsoleColor DiskSpeedColor(double bps)
 		{
-			return bps >= 1048576 ? ConsoleColor.White : bps >= 1024 ? ConsoleColor.Gray : ConsoleColor.DarkGray;
+			return bps >= 1048576 ? ConsoleColor.White : bps >= 1024 ? ConsoleColor.Gray : ConsoleColor.Gray;
 		}
 
 		private static ConsoleColor LatencyColor(double x)
@@ -800,7 +800,7 @@ namespace FdbTop
 			SetBackground(ConsoleColor.Black);
 			Screen.Clear(Program.CurrentColor, Program.CurrentBackground);
 
-			SetColor(ConsoleColor.DarkGray);
+			SetColor(ConsoleColor.Gray);
 			WriteAt(TOP_COL0, TOP_ROW0, "Reads  : {0,8} Hz", "");
 			WriteAt(TOP_COL0, TOP_ROW1, "Writes : {0,8} Hz", "");
 			WriteAt(TOP_COL0, TOP_ROW2, "Written: {0,8} MB/s", "");
@@ -954,7 +954,7 @@ namespace FdbTop
 			{
 				if (y < ScreenHeight)
 				{
-					SetColor(ConsoleColor.DarkGray);
+					SetColor(ConsoleColor.Gray);
 					WriteAt(
 						1,
 						y,
@@ -1035,7 +1035,7 @@ namespace FdbTop
 			{
 				if (y < ScreenHeight)
 				{
-					SetColor(ConsoleColor.DarkGray);
+					SetColor(ConsoleColor.Gray);
 					WriteAt(
 						1,
 						y,
@@ -1115,7 +1115,7 @@ namespace FdbTop
 			{
 				if (y < ScreenHeight)
 				{
-					SetColor(ConsoleColor.DarkGray);
+					SetColor(ConsoleColor.Gray);
 					WriteAt(
 						1,
 						y,
@@ -1211,7 +1211,7 @@ namespace FdbTop
 
 		private static ConsoleColor MapDiskOpsToColor(double ops)
 		{
-			return ops < 500 * KIBIBYTE ? ConsoleColor.DarkGray
+			return ops < 500 * KIBIBYTE ? ConsoleColor.Gray
 			     : ops < 5 * MEBIBYTE ? ConsoleColor.Gray
 			     : ops < 25 * MEBIBYTE ? ConsoleColor.White
 			     : ops > 100 * MEBIBYTE ? ConsoleColor.Red
@@ -1220,7 +1220,7 @@ namespace FdbTop
 
 		private static ConsoleColor MapQueueSizeToColor(double value)
 		{
-			return value < 10 * MEBIBYTE ? ConsoleColor.DarkGray
+			return value < 10 * MEBIBYTE ? ConsoleColor.Gray
 			     : value < 100 * MEBIBYTE ? ConsoleColor.Gray
 			     : value < 1 * GIBIBYTE ? ConsoleColor.White
 			     : value < 5 * GIBIBYTE ? ConsoleColor.Cyan
@@ -1231,7 +1231,7 @@ namespace FdbTop
 		private static ConsoleColor MapMegabitsToColor(double megaBits)
 		{
 			megaBits /= 8;
-			return megaBits < 0.1 ? ConsoleColor.DarkGray
+			return megaBits < 0.1 ? ConsoleColor.Gray
 			     : megaBits >= 1000 ? ConsoleColor.Red
 			     : megaBits >= 100 ? ConsoleColor.DarkRed
 			     : megaBits >= 50 ? ConsoleColor.DarkYellow
@@ -1242,7 +1242,7 @@ namespace FdbTop
 
 		private static ConsoleColor MapConnectionsToColor(long connections)
 		{
-			return connections < 10 ? ConsoleColor.DarkGray
+			return connections < 10 ? ConsoleColor.Gray
 			     : connections < 50 ? ConsoleColor.Gray
 			     : connections < 100 ? ConsoleColor.White
 			     : connections < 250 ? ConsoleColor.Cyan
@@ -1252,7 +1252,7 @@ namespace FdbTop
 
 		private static ConsoleColor MapMemoryToColor(long value)
 		{
-			return value < GIBIBYTE ? ConsoleColor.DarkGray
+			return value < GIBIBYTE ? ConsoleColor.Gray
 			     : value <= 3 * GIBIBYTE ? ConsoleColor.Gray
 			     : value <= 5 * GIBIBYTE ? ConsoleColor.White
 			     : value <= 7 * GIBIBYTE ? ConsoleColor.DarkYellow
@@ -1307,7 +1307,7 @@ namespace FdbTop
 				LastProcessYMax = 0;
 
 #if DEBUG_LAYOUT
-				SetColor(ConsoleColor.DarkGray);
+				SetColor(ConsoleColor.Gray);
 				WriteAt(COL_HOST, 4, "0 - - - - - -");
 				WriteAt(COL_NET, 4, "1 - - - - - -");
 				WriteAt(COL_CPU, 4, "3 - - - - - -");
@@ -1374,7 +1374,7 @@ namespace FdbTop
 				}
 				totalDiskBusy /= procs.Count;
 
-				SetColor(ConsoleColor.DarkGray);
+				SetColor(ConsoleColor.Gray);
 				WriteAt(1, y,"                 | ____ ________ ________ | _____% __________ | _____ / _____ _____ | ________ _______ _______ | _____% __________ | ___________ | ".Replace('_', ' '));
 
 				SetColor(ConsoleColor.White);
@@ -1392,7 +1392,7 @@ namespace FdbTop
 				WriteAt(COL_MEM_USED, y, "{0,5:N1}", GigaBytes(machine.Memory.CommittedBytes));
 				WriteAt(COL_MEM_TOTAL, y, "{0,5:N1}", GigaBytes(machine.Memory.TotalBytes));
 
-				SetColor(ConsoleColor.DarkGray);
+				SetColor(ConsoleColor.Gray);
 				WriteAt(COL_ROLES, y, "{0,11}", map);
 
 				SetColor(machine.Cpu.LogicalCoreUtilization >= 0.9 ? ConsoleColor.Red : ConsoleColor.Green);
@@ -1417,7 +1417,7 @@ namespace FdbTop
 
 				SetColor(ConsoleColor.Gray);
 				WriteAt(COL_HDD, y, "{0,5:N1}", totalDiskBusy * 100);
-				SetColor(totalDiskBusy == 0.0 ? ConsoleColor.DarkGray : totalDiskBusy >= 0.95 ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
+				SetColor(totalDiskBusy == 0.0 ? ConsoleColor.Gray : totalDiskBusy >= 0.95 ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
 				WriteAt(COL_HDD + 7, y, "{0,-10}", BarGraph(totalDiskBusy, 1, 10, '=', ":","."));
 
 				++y;
@@ -1448,7 +1448,7 @@ namespace FdbTop
 
 					if (y < ScreenHeight)
 					{
-						SetColor(ConsoleColor.DarkGray);
+						SetColor(ConsoleColor.Gray);
 						WriteAt(
 							COL_HOST,
 							y,
@@ -1456,7 +1456,7 @@ namespace FdbTop
 							""
 						);
 
-						SetColor(proc.Version != maxVersion ? ConsoleColor.DarkRed : ConsoleColor.DarkGray);
+						SetColor(proc.Version != maxVersion ? ConsoleColor.DarkRed : ConsoleColor.Gray);
 						WriteAt(COL_HOST + 10, y, "{0,6}", proc.Version);
 
 						SetColor(proc.Excluded ? ConsoleColor.DarkRed : ConsoleColor.Gray);
@@ -1470,7 +1470,7 @@ namespace FdbTop
 						WriteAt(COL_NET + 14, y, "{0,8:N2}", Nice(proc.Network.MegabitsSent.Hz, "-", 0.005, "~"));
 
 						var cpuUsage = proc.Cpu.UsageCores;
-						SetColor(cpuUsage >= 0.95 ? ConsoleColor.DarkRed : cpuUsage >= 0.75 ? ConsoleColor.DarkYellow : cpuUsage >= 0.2 ? ConsoleColor.Gray : ConsoleColor.DarkGray);
+						SetColor(cpuUsage >= 0.95 ? ConsoleColor.DarkRed : cpuUsage >= 0.75 ? ConsoleColor.DarkYellow : cpuUsage >= 0.2 ? ConsoleColor.Gray : ConsoleColor.Gray);
 						WriteAt(COL_CPU, y, "{0,5:N1}", cpuUsage * 100);
 						SetColor(cpuUsage >= 0.95 ? ConsoleColor.DarkRed : cpuUsage >= 0.75 ? ConsoleColor.DarkYellow : ConsoleColor.DarkGreen);
 						WriteAt(COL_CPU + 7, y, "{0,-10}", BarGraph(proc.Cpu.UsageCores, 1, CPU_BARSZ, '|', ":", "."));
@@ -1500,13 +1500,13 @@ namespace FdbTop
 
 						SetColor(ConsoleColor.Gray);
 						WriteAt(COL_HDD, y, "{0,5:N1}", proc.Disk.Busy * 100);
-						SetColor(proc.Disk.Busy == 0.0 ? ConsoleColor.DarkGray : proc.Disk.Busy >= 0.95 ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
+						SetColor(proc.Disk.Busy == 0.0 ? ConsoleColor.Gray : proc.Disk.Busy >= 0.95 ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
 						WriteAt(COL_HDD + 7, y, "{0,-10}", new string('|', Bar(proc.Disk.Busy, 1, 10)));
 
 						SetColor(ConsoleColor.Gray);
 						WriteAt(COL_ROLES, y, "{0,11}", map);
 
-						SetColor(ConsoleColor.DarkGray);
+						SetColor(ConsoleColor.Gray);
 						WriteAt(COL9, y, "{0,11}", proc.Uptime.ToString(@"d\.hh\:mm\:ss"));
 
 					}
@@ -1587,7 +1587,7 @@ namespace FdbTop
 
 
 #if DEBUG_LAYOUT
-				SetColor(ConsoleColor.DarkGray);
+				SetColor(ConsoleColor.Gray);
 				WriteAt(COL0, 4, "0 - - - - - -");
 				WriteAt(COL_NET, 4, "1 - - - - - -");
 				WriteAt(COL2, 4, "2 - - - - - -");
@@ -1644,7 +1644,7 @@ namespace FdbTop
 				//WriteAt(COL3, y, "{0,5:N1}", machine.Cpu.LogicalCoreUtilization * 100);
 				//WriteAt(COL4, y, "{0,5:N1}", GigaBytes(machine.Memory.CommittedBytes));
 				//WriteAt(COL5, y, "{0,5:N1}", GigaBytes(machine.Memory.TotalBytes));
-				//SetColor(ConsoleColor.DarkGray);
+				//SetColor(ConsoleColor.Gray);
 				//WriteAt(COL8, y, "{0,11}", map);
 
 				//SetColor(machine.Cpu.LogicalCoreUtilization >= 0.9 ? ConsoleColor.Red : ConsoleColor.Green);
@@ -1654,7 +1654,7 @@ namespace FdbTop
 				//SetColor(memRatio >= 0.95 ? ConsoleColor.Red : memRatio >= 0.79 ? ConsoleColor.DarkYellow : ConsoleColor.Green);
 				//WriteAt(COL5 + 6, y, "{0,-10}", BarGraph(machine.Memory.CommittedBytes, machine.Memory.TotalBytes, MEM_BARSZ, '|', ':'));
 
-				//SetColor(ConsoleColor.DarkGray);
+				//SetColor(ConsoleColor.Gray);
 				//WriteAt(COL6, y, "S: {0}; Q: {1}, D: {2}", FriendlyBytes(storageBytes), FriendlyBytes(queueDiskBytes), FriendlyBytes((long) blahBytes));
 
 				long maxLogTransaction = 0;
@@ -1693,7 +1693,7 @@ namespace FdbTop
 				{
 					if (y < ScreenHeight)
 					{
-						SetColor(ConsoleColor.DarkGray);
+						SetColor(ConsoleColor.Gray);
 						WriteAt(COL0, y, " _______________:_____ | ________ ________ | _____% __________ | ________ | ".Replace('_', ' '));
 						if (roleId == "storage")
 						{
@@ -1726,7 +1726,7 @@ namespace FdbTop
 
 						long memoryUsed = proc.Memory.UsedBytes;
 
-						SetColor(memoryUsed >= 0.75 * proc.Memory.LimitBytes ? ConsoleColor.White : memoryUsed >= GIBIBYTE ? ConsoleColor.Gray : ConsoleColor.DarkGray);
+						SetColor(memoryUsed >= 0.75 * proc.Memory.LimitBytes ? ConsoleColor.White : memoryUsed >= GIBIBYTE ? ConsoleColor.Gray : ConsoleColor.Gray);
 						WriteAt(COL_MEMORY, y, "{0,8}", FriendlyBytes(memoryUsed));
 
 						if (role is StorageRoleMetrics storage)
@@ -1747,11 +1747,11 @@ namespace FdbTop
 							WriteAt(COL_STORAGE + 25, y, "{0,8}", FriendlyBytes(storage.StoredBytes));
 
 							var dataLag = storage.DataLag.Seconds;
-							SetColor(dataLag < 0.5 ? ConsoleColor.DarkGray : dataLag < 1 ? ConsoleColor.Gray : dataLag < 2 ? ConsoleColor.White : dataLag < 6 ? ConsoleColor.Cyan : dataLag < 11 ? ConsoleColor.DarkYellow : ConsoleColor.DarkRed);
+							SetColor(dataLag < 0.5 ? ConsoleColor.Gray : dataLag < 1 ? ConsoleColor.Gray : dataLag < 2 ? ConsoleColor.White : dataLag < 6 ? ConsoleColor.Cyan : dataLag < 11 ? ConsoleColor.DarkYellow : ConsoleColor.DarkRed);
 							WriteAt(COL_DATAVERSION, y, "{0,5:N1}",  Nice(storage.DataLag.Seconds, "-"));
 							var durLag = storage.DurabilityLag.Seconds;
 							//should usually be around 
-							SetColor(durLag < 6 ? ConsoleColor.DarkGray : durLag < 8 ? ConsoleColor.Gray : durLag < 11 ? ConsoleColor.White : durLag < 16 ? ConsoleColor.Cyan : durLag < 26 ? ConsoleColor.DarkYellow : ConsoleColor.DarkRed);
+							SetColor(durLag < 6 ? ConsoleColor.Gray : durLag < 8 ? ConsoleColor.Gray : durLag < 11 ? ConsoleColor.White : durLag < 16 ? ConsoleColor.Cyan : durLag < 26 ? ConsoleColor.DarkYellow : ConsoleColor.DarkRed);
 							WriteAt(COL_DATAVERSION + 7, y, "{0,5:N1}", durLag);
 
 							WriteAt(COL_KVSTORE, y, "{0,8}", FriendlyBytes(storage.KVStoreUsedBytes));
@@ -1774,7 +1774,7 @@ namespace FdbTop
 							WriteAt(COL_STORAGE + 25, y, "{0,8:N1}", FriendlyBytes(log.QueueDiskUsedBytes));
 
 							long delta = log.DataVersion - maxLogTransaction;
-							SetColor(delta >= -500_000 ? ConsoleColor.DarkGray : delta >= -1_000_000 ? ConsoleColor.Gray : delta >= -2_000_000 ? ConsoleColor.White : delta >= -5_000_000 ? ConsoleColor.Cyan : delta >= -10_000_000 ? ConsoleColor.DarkYellow : ConsoleColor.DarkRed);
+							SetColor(delta >= -500_000 ? ConsoleColor.Gray : delta >= -1_000_000 ? ConsoleColor.Gray : delta >= -2_000_000 ? ConsoleColor.White : delta >= -5_000_000 ? ConsoleColor.Cyan : delta >= -10_000_000 ? ConsoleColor.DarkYellow : ConsoleColor.DarkRed);
 							WriteAt(COL_DATAVERSION, y, "{0,13:N0}", Nice(delta, "-"));
 
 							WriteAt(COL_KVSTORE, y, "{0,8}", FriendlyBytes(log.KVStoreUsedBytes));
@@ -1789,7 +1789,7 @@ namespace FdbTop
 						{
 							SetColor(ConsoleColor.Gray);
 							WriteAt(COL_HDD, y, "{0,5:N1}", proc.Disk.Busy * 100);
-							SetColor(proc.Disk.Busy == 0.0 ? ConsoleColor.DarkGray : proc.Disk.Busy >= 0.95 ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
+							SetColor(proc.Disk.Busy == 0.0 ? ConsoleColor.Gray : proc.Disk.Busy >= 0.95 ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
 							WriteAt(COL_HDD + 7, y, "{0,-5}", BarGraph(proc.Disk.Busy, 1, HDD_BARSZ, '|', ":", "."));
 						}
 
