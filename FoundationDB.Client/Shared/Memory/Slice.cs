@@ -972,7 +972,7 @@ namespace System
 				next.Add(writer.Position);
 			}
 
-			return SplitIntoSegments(writer.Buffer ?? System.Array.Empty<byte>(), 0, next);
+			return SplitIntoSegments(writer.GetBufferUnsafe(), 0, next);
 		}
 
 		/// <summary>Append an array of slice at the end of the current slice, all sharing the same buffer</summary>
@@ -999,7 +999,7 @@ namespace System
 				next.Add(writer.Position);
 			}
 
-			return SplitIntoSegments(writer.Buffer ?? System.Array.Empty<byte>(), 0, next);
+			return SplitIntoSegments(writer.GetBufferUnsafe(), 0, next);
 		}
 
 		/// <summary>Append a sequence of slice at the end of the current slice, all sharing the same buffer</summary>
@@ -1025,7 +1025,7 @@ namespace System
 				next.Add(writer.Position);
 			}
 
-			return SplitIntoSegments(writer.Buffer ?? System.Array.Empty<byte>(), 0, next);
+			return SplitIntoSegments(writer.GetBufferUnsafe(), 0, next);
 		}
 
 		/// <summary>Split a buffer containing multiple contiguous segments into an array of segments</summary>
@@ -1037,6 +1037,7 @@ namespace System
 		public static Slice[] SplitIntoSegments(byte[] buffer, int start, List<int> endOffsets)
 		{
 			Contract.Requires(buffer != null && endOffsets != null);
+			if (endOffsets.Count == 0) return System.Array.Empty<Slice>();
 			var result = new Slice[endOffsets.Count];
 			int i = 0;
 			int p = start;
@@ -1550,7 +1551,7 @@ namespace System
 				next.Add(writer.Position);
 			}
 
-			return SplitIntoSegments(writer.Buffer ?? System.Array.Empty<byte>(), 0, next);
+			return SplitIntoSegments(writer.GetBufferUnsafe(), 0, next);
 		}
 
 		/// <summary>Merge an array of keys with a same prefix, all sharing the same buffer</summary>
@@ -1615,7 +1616,7 @@ namespace System
 				next.Add(writer.Position);
 			}
 
-			return SplitIntoSegments(writer.Buffer ?? System.Array.Empty<byte>(), 0, next);
+			return SplitIntoSegments(writer.GetBufferUnsafe(), 0, next);
 		}
 
 		/// <summary>Creates a new slice that contains the same byte repeated</summary>
@@ -1990,11 +1991,11 @@ namespace System
 
 				case "K":
 				case "k":
-					return PrettyPrint(); //TODO: Key ! (cf USlice)
+					return this.IsNull ? "<null>" : PrettyPrint(); //TODO: Key ! (cf USlice)
 
 				case "V":
 				case "v":
-					return PrettyPrint(); //TODO: Value ! (cf USlice)
+					return this.IsNull ? "<null>" : PrettyPrint(); //TODO: Value ! (cf USlice)
 
 				default:
 					throw new FormatException("Format is invalid or not supported");
@@ -2632,7 +2633,7 @@ namespace System
 
 		/// <summary>Return a slice that wraps the whole array</summary>
 		[Pure, DebuggerNonUserCode, MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Slice AsSlice(this byte[]? bytes)
+		public static Slice AsSlice([AllowNull] this byte[] bytes)
 		{
 			return bytes != null && bytes.Length > 0 ? new Slice(bytes, 0, bytes.Length) : EmptyOrNil(bytes);
 		}
@@ -2642,7 +2643,7 @@ namespace System
 		/// <param name="offset">Offset to the first byte of the slice</param>
 		/// <returns></returns>
 		[Pure, DebuggerNonUserCode, MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Slice AsSlice(this byte[]? bytes, [Positive] int offset)
+		public static Slice AsSlice([AllowNull] this byte[] bytes, [Positive] int offset)
 		{
 			//note: this method is DANGEROUS! Caller may thing that it is passing a count instead of an offset.
 			if (bytes == null) return offset == 0 ? Slice.Nil : throw UnsafeHelpers.Errors.BufferArrayNotNull();
@@ -2659,7 +2660,7 @@ namespace System
 		/// If <paramref name="count"/> is 0 then either <see cref="Slice.Empty"/> or <see cref="Slice.Nil"/> will be returned, in order to not keep a reference to the whole buffer.
 		/// </returns>
 		[Pure, DebuggerNonUserCode, MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Slice AsSlice(this byte[]? bytes, [Positive] int offset, [Positive] int count)
+		public static Slice AsSlice([AllowNull] this byte[] bytes, [Positive] int offset, [Positive] int count)
 		{
 			//note: this method will frequently be called with offset==0, so we should optimize for this case!
 			if (bytes == null || count == 0) return EmptyOrNil(bytes, count);
@@ -2680,7 +2681,7 @@ namespace System
 		/// If <paramref name="count"/> is 0, then either <see cref="Slice.Empty"/> or <see cref="Slice.Nil"/> will be returned, in order to not keep a reference to the whole buffer.
 		/// </returns>
 		[Pure, DebuggerNonUserCode, MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Slice AsSlice(this byte[]? bytes, uint offset, uint count)
+		public static Slice AsSlice([AllowNull] this byte[] bytes, uint offset, uint count)
 		{
 			//note: this method will frequently be called with offset==0, so we should optimize for this case!
 			if (bytes == null || count == 0) return EmptyOrNil(bytes, (int) count);
@@ -2700,7 +2701,7 @@ namespace System
 		/// Slice that maps the corresponding sub-section of the array.
 		/// If <paramref name="range"/> is empty, then either <see cref="Slice.Empty"/> or <see cref="Slice.Nil"/> will be returned, in order to not keep a reference to the whole buffer.
 		/// </returns>
-		public static Slice AsSlice(this byte[]? bytes, Range range)
+		public static Slice AsSlice([AllowNull] this byte[] bytes, Range range)
 		{
 			if (bytes == null)
 			{

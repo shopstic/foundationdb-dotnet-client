@@ -49,7 +49,7 @@ namespace FoundationDB.Client.Tests
 			var options = new FdbConnectionOptions
 			{
 				ClusterFile = TestClusterFile,
-				Root = FdbDirectoryPath.Empty, // core tests cannot rely on the DirectoryLayer!
+				Root = FdbPath.Root, // core tests cannot rely on the DirectoryLayer!
 				DefaultTimeout = TimeSpan.FromMilliseconds(DefaultTimeout),
 			};
 			return Fdb.OpenAsync(options, ct);
@@ -61,7 +61,7 @@ namespace FoundationDB.Client.Tests
 			var options = new FdbConnectionOptions
 			{
 				ClusterFile = TestClusterFile,
-				Root = FdbDirectoryPath.Combine("Tests", "Fdb", Environment.MachineName),
+				Root = FdbPath.Absolute(FdbPathSegment.Partition("Tests"), FdbPathSegment.Create("Fdb"), FdbPathSegment.Partition(Environment.MachineName)),
 				DefaultTimeout = TimeSpan.FromMilliseconds(DefaultTimeout),
 			};
 			return Fdb.OpenAsync(options, ct);
@@ -86,8 +86,10 @@ namespace FoundationDB.Client.Tests
 			// if the prefix part is empty, then we simply recursively remove the corresponding sub-directory tree
 			// If it is not empty, we only remove the corresponding subspace (without touching the sub-directories!)
 
-			await db.WithoutLogging().WriteAsync(async tr =>
+			await db.WriteAsync(async tr =>
 			{
+				tr.StopLogging();
+
 				if (location.Path.Count == 0)
 				{ // subspace under the root of the partition
 
@@ -119,11 +121,9 @@ namespace FoundationDB.Client.Tests
 		{
 			Assert.That(db, Is.Not.Null);
 
-			// do not log
-			db = db.WithoutLogging();
-
 			using (var tr = await db.BeginTransactionAsync(ct))
 			{
+				tr.StopLogging();
 				await DumpSubspace(tr, subspace).ConfigureAwait(false);
 			}
 		}
@@ -132,11 +132,10 @@ namespace FoundationDB.Client.Tests
 		{
 			Assert.That(db, Is.Not.Null);
 
-			// do not log
-			db = db.WithoutLogging();
-
 			using (var tr = await db.BeginTransactionAsync(ct))
 			{
+				tr.StopLogging();
+
 				var subspace = await path.Resolve(tr);
 				if (subspace == null)
 				{

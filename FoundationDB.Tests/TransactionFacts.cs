@@ -1,5 +1,5 @@
 ﻿#region BSD License
-/* Copyright (c) 2013-2019, Doxense SAS
+/* Copyright (c) 2013-2020, Doxense SAS
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -40,9 +40,6 @@ namespace FoundationDB.Client.Tests
 	using System.Threading;
 	using System.Threading.Tasks;
 	using NUnit.Framework;
-#if ENABLE_LOGGING
-	using FoundationDB.Filters.Logging;
-#endif
 
 	[TestFixture]
 	public class TransactionFacts : FdbTest
@@ -105,6 +102,8 @@ namespace FoundationDB.Client.Tests
 		{
 			using (var db = await OpenTestDatabaseAsync())
 			{
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				using (var tr = await db.BeginReadOnlyTransactionAsync(this.Cancellation))
 				{
 					Assert.That(tr, Is.Not.Null);
@@ -131,6 +130,8 @@ namespace FoundationDB.Client.Tests
 		{
 			using (var db = await OpenTestDatabaseAsync())
 			{
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				IFdbTransaction tr1 = null;
 				IFdbTransaction tr2 = null;
 				try
@@ -173,6 +174,8 @@ namespace FoundationDB.Client.Tests
 		{
 			using (var db = await OpenTestDatabaseAsync())
 			{
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
 					Assert.That(tr, Is.InstanceOf<FdbTransaction>());
@@ -192,6 +195,8 @@ namespace FoundationDB.Client.Tests
 		{
 			using (var db = await OpenTestDatabaseAsync())
 			{
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
 					// do nothing with it
@@ -211,6 +216,8 @@ namespace FoundationDB.Client.Tests
 		{
 			using (var db = await OpenTestDatabaseAsync())
 			{
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
 					Assert.That(tr, Is.InstanceOf<FdbTransaction>());
@@ -233,6 +240,8 @@ namespace FoundationDB.Client.Tests
 			{
 				var location = db.Root.ByKey("test").AsTyped<int>();
 				await CleanLocation(db, location);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
@@ -262,6 +271,8 @@ namespace FoundationDB.Client.Tests
 				await CleanLocation(db, location);
 
 				var rnd = new Random();
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
@@ -301,6 +312,8 @@ namespace FoundationDB.Client.Tests
 				var location = db.Root.ByKey("test").AsTyped<int>();
 				await CleanLocation(db, location);
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				var rnd = new Random();
 
 				using(var cts = new CancellationTokenSource())
@@ -332,6 +345,8 @@ namespace FoundationDB.Client.Tests
 		{
 			using (var db = await OpenTestDatabaseAsync())
 			{
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
 					long ver = await tr.GetReadVersionAsync();
@@ -357,6 +372,8 @@ namespace FoundationDB.Client.Tests
 
 				var location = db.Root.ByKey("test").AsTyped<string>();
 				await CleanLocation(db, location);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				// write a bunch of keys
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
@@ -424,6 +441,8 @@ namespace FoundationDB.Client.Tests
 					await tr.CommitAsync();
 				}
 				#endregion
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
@@ -571,6 +590,8 @@ namespace FoundationDB.Client.Tests
 					await tr.CommitAsync();
 				}
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
 					var subspace = await location.Resolve(tr);
@@ -620,6 +641,8 @@ namespace FoundationDB.Client.Tests
 				}
 				#endregion
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
 					var subspace = await location.Resolve(tr);
@@ -645,6 +668,86 @@ namespace FoundationDB.Client.Tests
 					// GetKeysAsync(real enumerable)
 					var results3 = await tr.GetKeysAsync(selectors.Select(x => x));
 					Assert.That(results3, Is.EqualTo(results));
+				}
+			}
+		}
+
+		[Test]
+		public async Task Test_Can_Check_Value()
+		{
+			using (var db = await OpenTestDatabaseAsync())
+			{
+				var location = db.Root.ByKey("test").AsTyped<string>();
+				await CleanLocation(db, location);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
+				// write a bunch of keys
+				await db.WriteAsync(async tr =>
+				{
+					var subspace = await location.Resolve(tr);
+					tr.Set(subspace["hello"], Value("World!"));
+					tr.Set(subspace["foo"], Slice.Empty);
+				}, this.Cancellation);
+
+				async Task Check(IFdbReadOnlyTransaction tr, Slice key, Slice expected, FdbValueCheckResult result, Slice actual)
+				{
+					Log($"Check {key} == {expected} ?");
+					var res = await tr.CheckValueAsync(key, expected);
+					Log($"> [{res.Result}], {res.Actual:V}");
+					Assert.That(res.Actual, Is.EqualTo(actual), "Check({0} == {1}) => ({2}, {3}).Actual was {4}", key, expected, result, actual, res.Actual);
+					Assert.That(res.Result, Is.EqualTo(result), "Check({0} == {1}) => ({2}, {3}).Result was {4}", key, expected, result, actual, res.Result);
+				}
+
+				// hello should only be equal to 'World!', not any other value, empty or nil
+				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
+				{
+					var subspace = await location.Resolve(tr);
+
+					// hello should only be equal to 'World!', not any other value, empty or nil
+					await Check(tr, subspace["hello"], Value("World!"), FdbValueCheckResult.Success, Value("World!"));
+					await Check(tr, subspace["hello"], Value("Le Monde!"), FdbValueCheckResult.Failed, Value("World!"));
+					await Check(tr, subspace["hello"], Slice.Nil, FdbValueCheckResult.Failed, Value("World!"));
+					await Check(tr, subspace["hello"], subspace["hello"], FdbValueCheckResult.Failed, Value("World!"));
+				}
+
+				// foo should only be equal to Empty, *not* Nil or any other value
+				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
+				{
+					var subspace = await location.Resolve(tr);
+					await Check(tr, subspace["foo"], Slice.Empty, FdbValueCheckResult.Success, Slice.Empty);
+					await Check(tr, subspace["foo"], Value("bar"), FdbValueCheckResult.Failed, Slice.Empty);
+					await Check(tr, subspace["foo"], Slice.Nil, FdbValueCheckResult.Failed, Slice.Empty);
+					await Check(tr, subspace["foo"], subspace["foo"], FdbValueCheckResult.Failed, Slice.Empty);
+				}
+
+				// not_found should only be equal to Nil, *not* Empty or any other value
+				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
+				{
+					var subspace = await location.Resolve(tr);
+					await Check(tr, subspace["not_found"], Slice.Nil, FdbValueCheckResult.Success, Slice.Nil);
+					await Check(tr, subspace["not_found"], Slice.Empty, FdbValueCheckResult.Failed, Slice.Nil);
+					await Check(tr, subspace["not_found"], subspace["not_found"], FdbValueCheckResult.Failed, Slice.Nil);
+				}
+
+				// checking, changing and checking again: 2nd check should see the modified value!
+				// not_found should only be equal to Nil, *not* Empty or any other value
+				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
+				{
+					var subspace = await location.Resolve(tr);
+
+					await Check(tr, subspace["hello"], Value("World!"), FdbValueCheckResult.Success, Value("World!"));
+					await Check(tr, subspace["not_found"], Slice.Nil, FdbValueCheckResult.Success, Slice.Nil);
+
+					tr.Set(subspace["hello"], Value("Le Monde!"));
+					await Check(tr, subspace["hello"], Value("Le Monde!"), FdbValueCheckResult.Success, Value("Le Monde!"));
+					await Check(tr, subspace["hello"], Value("World!"), FdbValueCheckResult.Failed, Value("Le Monde!"));
+
+					tr.Set(subspace["not_found"], Value("Surprise!"));
+					await Check(tr, subspace["not_found"], Value("Surprise!"), FdbValueCheckResult.Success, Value("Surprise!"));
+					await Check(tr, subspace["not_found"], Slice.Nil, FdbValueCheckResult.Failed, Value("Surprise!"));
+
+					//note: don't commit!
 				}
 			}
 		}
@@ -698,11 +801,10 @@ namespace FoundationDB.Client.Tests
 				var location = db.Root.ByKey("test", "atomic");
 				await CleanLocation(db, location);
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				//note: we take a risk by reading the key separately, but this simplifies the rest of the code !
-				Task<Slice> ResolveKey(string name)
-				{
-					return db.ReadAsync(async tr => (await location.Resolve(tr)).Encode(name), this.Cancellation);
-				}
+				Task<Slice> ResolveKey(string name) => db.ReadAsync(async tr => (await location.Resolve(tr)).Encode(name), this.Cancellation);
 
 				Slice key;
 
@@ -780,6 +882,8 @@ namespace FoundationDB.Client.Tests
 				Log(location);
 				await CleanLocation(db, location);
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				// setup
 				await db.WriteAsync(async (tr) =>
 				{
@@ -828,6 +932,8 @@ namespace FoundationDB.Client.Tests
 				var location = db.Root.ByKey("test", "atomic").AsTyped<string>();
 				await CleanLocation(db, location);
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				// setup
 				await db.WriteAsync(async tr =>
 				{
@@ -870,6 +976,8 @@ namespace FoundationDB.Client.Tests
 			{
 				var location = db.Root.ByKey("test", "atomic").AsTyped<string>();
 				await CleanLocation(db, location);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				// setup
 				await db.WriteAsync(async (tr) =>
@@ -914,6 +1022,8 @@ namespace FoundationDB.Client.Tests
 				var location = db.Root.ByKey("test", "atomic").AsTyped<string>();
 				await CleanLocation(db, location);
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				// setup
 				await db.WriteAsync(async (tr) =>
 				{
@@ -956,6 +1066,8 @@ namespace FoundationDB.Client.Tests
 			{
 				var location = db.Root.ByKey("test", "atomic").AsTyped<string>();
 				await CleanLocation(db, location);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				// setup
 				await db.WriteAsync(async (tr) =>
@@ -1015,6 +1127,8 @@ namespace FoundationDB.Client.Tests
 					//EEE does not exist
 				}, this.Cancellation);
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				// execute
 				await db.WriteAsync(async (tr) =>
 				{
@@ -1048,6 +1162,8 @@ namespace FoundationDB.Client.Tests
 			{
 				var location = db.Root.ByKey("test").AsTyped<string>();
 				await CleanLocation(db, location);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				// write a bunch of keys
 				await db.WriteAsync(async (tr) =>
@@ -1193,6 +1309,8 @@ namespace FoundationDB.Client.Tests
 					tr.Set(subspace["foo"], Value("foo"));
 				}, this.Cancellation);
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				using (var trA = await db.BeginTransactionAsync(this.Cancellation))
 				using (var trB = await db.BeginTransactionAsync(this.Cancellation))
 				{
@@ -1228,6 +1346,8 @@ namespace FoundationDB.Client.Tests
 			{
 				var location = db.Root.ByKey("test").AsTyped<string>();
 				await CleanLocation(db, location);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				await db.WriteAsync(async (tr) =>
 				{
@@ -1269,6 +1389,8 @@ namespace FoundationDB.Client.Tests
 					var subspace = await location.Resolve(tr);
 					tr.Set(subspace.Encode("foo", 50), Value("fifty"));
 				}, this.Cancellation);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				// we will read the first key from [0, 100), expected 50
 				// but another transaction will insert 42, in effect changing the result of our range
@@ -1351,6 +1473,8 @@ namespace FoundationDB.Client.Tests
 					tr.ClearRange(subspace);
 					tr.Set(subspace.Encode("foo", 50), Value("fifty"));
 				}, this.Cancellation);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				// we will ask for the first key from >= 0, expecting 50, but if another transaction inserts something BEFORE 50, our key selector would have returned a different result, causing a conflict
 
@@ -1525,6 +1649,8 @@ namespace FoundationDB.Client.Tests
 				var location = db.Root.ByKey("test").AsTyped<string>();
 				await CleanLocation(db, location);
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				await db.WriteAsync(async (tr) =>
 				{
 					var subspace = await db.Root.Resolve(tr);
@@ -1624,6 +1750,8 @@ namespace FoundationDB.Client.Tests
 
 				Log("Initial db state:");
 				await DumpSubspace(db, location);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
@@ -1728,6 +1856,8 @@ namespace FoundationDB.Client.Tests
 				var location = db.Root.ByKey("test");
 				await CleanLocation(db, location);
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				#region Default behaviour...
 
 				// By default, a transaction see its own writes with non-snapshot reads
@@ -1808,6 +1938,8 @@ namespace FoundationDB.Client.Tests
 
 				long committedVersion;
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				// create first version
 				using (var tr1 = await db.BeginTransactionAsync(this.Cancellation))
 				{
@@ -1851,6 +1983,8 @@ namespace FoundationDB.Client.Tests
 		{
 			using (var db = await OpenTestDatabaseAsync())
 			{
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
 
@@ -1954,6 +2088,8 @@ namespace FoundationDB.Client.Tests
 				// But if the DefaultRetryLimit and DefaultTimeout are set on the database instance, they should automatically be re-applied inside transaction loops!
 				db.DefaultRetryLimit = 3;
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				int counter = 0;
 				var t = db.ReadAsync<int>((tr) =>
 				{
@@ -1991,6 +2127,8 @@ namespace FoundationDB.Client.Tests
 		{
 			using (var db = await OpenTestDatabaseAsync())
 			{
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
 					// simulate a first error
@@ -2024,6 +2162,8 @@ namespace FoundationDB.Client.Tests
 			{
 				var location = db.Root.ByKey("conflict").AsTyped<int>();
 				await CleanLocation(db, location);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				using (var tr1 = await db.BeginTransactionAsync(this.Cancellation))
 				{
@@ -2064,6 +2204,8 @@ namespace FoundationDB.Client.Tests
 				var location = db.Root.ByKey("conflict");
 				await CleanLocation(db, location);
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				using (var tr1 = await db.BeginTransactionAsync(this.Cancellation))
 				{
 					var subspace = await location.Resolve(tr1);
@@ -2103,6 +2245,8 @@ namespace FoundationDB.Client.Tests
 			{
 				var location = db.Root.ByKey("test", "bigbrother");
 				await CleanLocation(db, location);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				await db.WriteAsync(async tr =>
 				{
@@ -2265,6 +2409,8 @@ namespace FoundationDB.Client.Tests
 					tr.Set(subspace.Encode(1), Value("one"));
 				}, this.Cancellation);
 
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				// look for the address of key1
 				using (var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
@@ -2394,6 +2540,8 @@ namespace FoundationDB.Client.Tests
 		{
 			using(var db = await OpenTestDatabaseAsync())
 			{
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
 				using(var tr = await db.BeginTransactionAsync(this.Cancellation))
 				{
 					_ = await tr.GetReadVersionAsync();
@@ -2517,6 +2665,8 @@ namespace FoundationDB.Client.Tests
 				var location = db.Root.ByKey("versionstamps");
 
 				await CleanLocation(db, location);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				VersionStamp vsActual; // will contain the actual version stamp used by the database
 
@@ -2646,17 +2796,13 @@ namespace FoundationDB.Client.Tests
 			{
 				// reading the mv twice in _should_ return the same value, unless the test cluster is used by another application!
 
-#if ENABLE_LOGGING
-				var logged = db.Logged(tr => Log(tr.Log.GetTimingsReport(true)));
-#else
-				var logged = db;
-#endif
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
-				var version1 = await logged.ReadAsync(tr => tr.GetMetadataVersionKeyAsync(), this.Cancellation);
+				var version1 = await db.ReadAsync(tr => tr.GetMetadataVersionKeyAsync(), this.Cancellation);
 				Assert.That(version1, Is.Not.Null, "Version should be valid");
 				Log($"Version1: {version1}");
 
-				var version2 = await logged.ReadAsync(tr => tr.GetMetadataVersionKeyAsync(), this.Cancellation);
+				var version2 = await db.ReadAsync(tr => tr.GetMetadataVersionKeyAsync(), this.Cancellation);
 				Assert.That(version1, Is.Not.Null, "Version should be valid");
 				Log($"Version2: {version2}");
 
@@ -2666,12 +2812,12 @@ namespace FoundationDB.Client.Tests
 				Log("Changing version...");
 				await db.WriteAsync(tr => tr.TouchMetadataVersionKey(), this.Cancellation);
 
-				var version3 = await logged.ReadAsync(tr => tr.GetMetadataVersionKeyAsync(), this.Cancellation);
+				var version3 = await db.ReadAsync(tr => tr.GetMetadataVersionKeyAsync(), this.Cancellation);
 				Log($"Version3: {version3}");
 				Assert.That(version3, Is.Not.Null.And.Not.EqualTo(version2), "Metadata version should have changed");
 
 				// changing the metadata version and then reading it back from the same transaction should return <null>
-				await logged.WriteAsync(async tr =>
+				await db.WriteAsync(async tr =>
 				{
 					// We can read the version before
 					var before = await tr.GetMetadataVersionKeyAsync();
@@ -2701,11 +2847,7 @@ namespace FoundationDB.Client.Tests
 		{
 			using (var db = await OpenTestDatabaseAsync())
 			{
-#if ENABLE_LOGGING
-				var logged = db.Logged(tr => Log(tr.Log.GetTimingsReport(true)));
-#else
-				var logged = db;
-#endif
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
 
 				const string foo = "Foo";
 				const string bar = "Bar";
@@ -2716,24 +2858,24 @@ namespace FoundationDB.Client.Tests
 				// - Bar: different version stamp
 				// - Baz: _missing_
 
-				await logged.WriteAsync(async tr =>
+				await db.WriteAsync(async tr =>
 				{
 					var subspace = await db.Root.Resolve(tr);
 					tr.TouchMetadataVersionKey(subspace.Encode(foo));
 				}, this.Cancellation);
-				await logged.WriteAsync(async tr =>
+				await db.WriteAsync(async tr =>
 				{
 					var subspace = await db.Root.Resolve(tr);
 					tr.TouchMetadataVersionKey(subspace.Encode(bar));
 				}, this.Cancellation);
-				await logged.WriteAsync(async tr =>
+				await db.WriteAsync(async tr =>
 				{
 					var subspace = await db.Root.Resolve(tr);
 					tr.Clear(subspace.Encode(baz));
 				}, this.Cancellation);
 
 				// changing the metadata version and then reading it back from the same transaction CANNOT WORK!
-				await logged.WriteAsync(async tr =>
+				await db.WriteAsync(async tr =>
 				{
 					var subspace = await db.Root.Resolve(tr);
 
@@ -2908,6 +3050,455 @@ namespace FoundationDB.Client.Tests
 				GC.Collect();
 			}
 
+		}
+
+		[Test]
+		public async Task Test_Value_Checks()
+		{
+			// Verify that value-check perform as expected:
+			// - We have a set of keys that are used for value checks (AAA, BBB, ...)
+			// - We have a "witness" key that will be used to verify if the transaction actually committed or not.
+			// - On each retry of the retry-loop, we will check that the previous iteration did update the context state as it should have.
+
+			//NOTE: this test is vulnerable to transient errors that could happen to the cluster while it runs! (timeouts, etc...)
+			//TODO: we should use a more robust way to "skip" the retries that are for unrelated reasons?
+
+			using (var db = await OpenTestDatabaseAsync())
+			{
+				var location = db.Root.ByKey("value_checks");
+
+				await CleanLocation(db, location);
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
+				var initialA = Slice.FromStringAscii("Initial value of AAA");
+				var initialB = Slice.FromStringAscii("Initial value of BBB");
+
+				async Task RunCheck(Func<IFdbTransaction, bool> test, Func<IFdbTransaction, IDynamicKeySubspace, Task> handler, bool shouldCommit)
+				{
+					// read previous witness value
+					await db.WriteAsync(async tr =>
+					{
+						tr.StopLogging();
+						var subspace = (await location.Resolve(tr))!;
+
+						tr.ClearRange(subspace.ToRange());
+						tr.Set(subspace.Encode("AAA"), initialA);
+						tr.Set(subspace.Encode("BBB"), initialB);
+						// CCC does not exist
+						tr.Set(subspace.Encode("Witness"), Slice.FromStringAscii("Initial witness value"));
+					}, this.Cancellation);
+
+					await db.WriteAsync(async tr =>
+					{
+						var checks = tr.Context.GetValueChecksFromPreviousAttempt(result: FdbValueCheckResult.Failed);
+						Log($"- Retry #{tr.Context.Retries}: prev={tr.Context.PreviousError}, checksFromPrevious={checks.Count}");
+						foreach (var check in checks)
+						{
+							Log($"  > [{check.Tag}]: {check.Result}, {FdbKey.Dump(check.Key)} => {check.Expected:V} vs {check.Actual:V}");
+						}
+						if (tr.Context.Retries > 10) Assert.Fail("Too many retries!");
+
+						if (!test(tr)) return;
+
+						var subspace = (await location.Resolve(tr))!;
+						await handler(tr, subspace);
+						tr.Set(subspace.Encode("Witness"), Slice.FromStringAscii("New witness value"));
+					}, this.Cancellation);
+					await DumpSubspace(db, location);
+
+					// read back the witness key to see if commit happened or not.
+					var actual = await db.ReadAsync(async tr =>
+					{
+						tr.StopLogging();
+						var subspace = await location.Resolve(tr);
+						return await tr.GetAsync(subspace.Encode("Witness"));
+					}, this.Cancellation);
+
+					if (shouldCommit)
+						Assert.That(actual, Is.EqualTo(Slice.FromStringAscii("New witness value")), "Transaction SHOULD have changed the database!");
+					else
+						Assert.That(actual, Is.EqualTo(Slice.FromStringAscii("Initial witness value")), "Transaction should NOT have changed the database!");
+				}
+
+				// Checking a key with its actual value should pass
+				{
+					Log("Value check for AAA == CORRECT => expect PASS...");
+					await RunCheck(
+						(tr) =>
+						{
+							if (tr.Context.Retries == 0)
+							{ // first attempt: all should be default
+								Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Unknown));
+								Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Is.Empty);
+								return true;
+							}
+							else
+							{ // we don't expect any retries
+								Assert.Fail("Should not execute more than once!");
+								return false;
+							}
+						},
+						(tr, subspace) =>
+						{
+							tr.Context.AddValueCheck("fooCheck", subspace.Encode("AAA"), initialA);
+							return Task.CompletedTask;
+						},
+						shouldCommit: true
+					);
+				}
+
+				// Checking a missing key with nil should pass
+				{
+					Log("Value check for CCC == Nil => expect PASS...");
+					await RunCheck(
+						(tr) =>
+						{
+							if (tr.Context.Retries == 0)
+							{ // first attempt: all should be default
+								Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Unknown));
+								Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Is.Empty);
+								return true;
+							}
+							else
+							{ // we don't expect any retries
+								Assert.Fail("Should not execute more than once!");
+								return false;
+							}
+						},
+						(tr, subspace) =>
+						{
+							tr.Context.AddValueCheck("fooCheck", subspace.Encode("CCC"), Slice.Nil);
+							return Task.CompletedTask;
+						},
+						shouldCommit: true
+					);
+				}
+
+				// Checking a multiple keys should pass
+				{
+					Log("Value check for (AAA == CORRECT) & (BBB == CORRECT) & (CCC == nil) => expect PASS...");
+					await RunCheck(
+						(tr) =>
+						{
+							if (tr.Context.Retries == 0)
+							{ // first attepmpt: all should be default
+								Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Unknown));
+								Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Is.Empty);
+								Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("barCheck"), Is.EqualTo(FdbValueCheckResult.Unknown));
+								Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("barCheck"), Is.Empty);
+								return true;
+							}
+							else
+							{ // we don't expect any retries
+								Assert.Fail("Should not execute more than once!");
+								return false;
+							}
+						},
+						(tr, subspace) =>
+						{
+							tr.Context.AddValueCheck("fooCheck", subspace.Encode("AAA"), initialA);
+							tr.Context.AddValueCheck("barCheck", subspace.Encode("BBB"), initialB);
+							return Task.CompletedTask;
+						},
+						shouldCommit: true
+					);
+				}
+
+				// Checking a key with a different value should fail
+				{
+					Log("Value check BBB == INCORRECT => expect FAIL...");
+					await RunCheck(
+						(tr) =>
+						{
+							switch (tr.Context.Retries)
+							{
+								case 0:
+									// on first attempt, everything should be default
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Unknown));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Is.Empty);
+									return true;
+								case 1:
+									// on second attempt, value-check "fooCheck" should be triggered
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Failed));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Has.Count.EqualTo(1));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck")[0].Result, Is.EqualTo(FdbValueCheckResult.Failed));
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("unrelated"), Is.EqualTo(FdbValueCheckResult.Unknown));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("unrelated"), Is.Empty);
+									Assert.That(tr.Context.PreviousError, Is.EqualTo(FdbError.NotCommitted), "Should emulate a 'not_committed'");
+									return false; // stop
+								default:
+									Assert.Fail("Should not execute more than twice!");
+									return false;
+							}
+						},
+						(tr, subspace) =>
+						{
+							tr.Context.AddValueCheck("fooCheck", subspace.Encode("AAA"), Slice.FromStringAscii("Different value of AAA"));
+							return Task.CompletedTask;
+						},
+						shouldCommit: false
+					);
+				}
+
+				// Checking a missing key with a value should fail
+				{
+					Log("Value check CCC == SOMETHING => expect FAIL...");
+					await RunCheck(
+						(tr) =>
+						{
+							switch (tr.Context.Retries)
+							{
+								case 0:
+									// on first attempt, everything should be default
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Unknown));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Is.Empty);
+									return true;
+								case 1:
+									// on second attempt, value-check "fooCheck" should be triggered
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Failed));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Has.Count.EqualTo(1));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck")[0].Result, Is.EqualTo(FdbValueCheckResult.Failed));
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("unrelated"), Is.EqualTo(FdbValueCheckResult.Unknown));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("unrelated"), Is.Empty);
+									Assert.That(tr.Context.PreviousError, Is.EqualTo(FdbError.NotCommitted), "Should emulate a 'not_committed'");
+									return false; // stop
+								default:
+									Assert.Fail("Should not execute more than twice!");
+									return false;
+							}
+						},
+						(tr, subspace) =>
+						{
+							tr.Context.AddValueCheck("fooCheck", subspace.Encode("CCC"), Slice.FromStringAscii("Some value"));
+							return Task.CompletedTask;
+						},
+						shouldCommit: false
+					);
+				}
+
+				// Changing the value after the check should not be observed by the check
+				{
+					Log("Value check AAA == CORRECT; Set AAA = DIFFERENT => expect PASS...");
+					await RunCheck(
+						(tr) =>
+						{
+							switch (tr.Context.Retries)
+							{
+								case 0:
+									// on first attempt, everything should be default
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Unknown));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Is.Empty);
+									return true;
+								default:
+									// should not fire twice!
+									Assert.Fail("Should not execute more than once!");
+									return false;
+							}
+						},
+						(tr, subspace) =>
+						{
+							// check
+							tr.Context.AddValueCheck("fooCheck", subspace.Encode("AAA"), initialA);
+							// then change
+							tr.Set(subspace.Encode("AAA"), Slice.FromStringAscii("Different value for AAA"));
+							return Task.CompletedTask;
+						},
+						shouldCommit: true
+					);
+				}
+
+				// Clearing the key after the check should not be observed by the check
+				{
+					Log("Value check AAA == CORRECT; Clear AAA expect PASS...");
+					await RunCheck(
+						(tr) =>
+						{
+							switch (tr.Context.Retries)
+							{
+								case 0:
+									// on first attempt, everything should be default
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Unknown));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Is.Empty);
+									return true;
+								default:
+									// should not fire twice!
+									Assert.Fail("Should not execute more than once!");
+									return false;
+							}
+						},
+						(tr, subspace) =>
+						{
+							// check
+							tr.Context.AddValueCheck("fooCheck", subspace.Encode("AAA"), initialA);
+							// then change
+							tr.Clear(subspace.Encode("AAA"));
+							return Task.CompletedTask;
+						},
+						shouldCommit: true
+					);
+				}
+
+				// Changing the value BEFORE the check should be observed by the check
+				{
+					Log("Set AAA = DIFFERENT; Value check AAA == CORRECT => expect FAIL...");
+					await RunCheck(
+						(tr) =>
+						{
+							switch (tr.Context.Retries)
+							{
+								case 0:
+									// on first attempt, everything should be default
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Unknown));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Is.Empty);
+									return true;
+								case 1:
+									// on second attempt, value-check "fooCheck" should be triggered
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Failed));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Has.Count.EqualTo(1));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck")[0].Result, Is.EqualTo(FdbValueCheckResult.Failed));
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("unrelated"), Is.EqualTo(FdbValueCheckResult.Unknown));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("unrelated"), Is.Empty);
+									Assert.That(tr.Context.PreviousError, Is.EqualTo(FdbError.NotCommitted), "Should emulate a 'not_committed'");
+									return false; // stop
+								default:
+									Assert.Fail("Should not execute more than twice!");
+									return false;
+							}
+						},
+						(tr, subspace) =>
+						{
+							// change
+							tr.Set(subspace.Encode("AAA"), Slice.FromStringAscii("Different value for AAA"));
+							// then check
+							tr.Context.AddValueCheck("fooCheck", subspace.Encode("AAA"), initialA);
+							return Task.CompletedTask;
+						},
+						shouldCommit: false
+					);
+				}
+
+				// Clearing a key BEFORE the check should be observed by the check
+				{
+					Log("Clear AAA; Value check AAA == CORRECT => expect FAIL...");
+					await RunCheck(
+						(tr) =>
+						{
+							switch (tr.Context.Retries)
+							{
+								case 0:
+									// on first attempt, everything should be default
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Unknown));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Is.Empty);
+									return true;
+								case 1:
+									// on second attempt, value-check "fooCheck" should be triggered
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("fooCheck"), Is.EqualTo(FdbValueCheckResult.Failed));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck"), Has.Count.EqualTo(1));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("fooCheck")[0].Result, Is.EqualTo(FdbValueCheckResult.Failed));
+									Assert.That(tr.Context.TestValueCheckFromPreviousAttempt("unrelated"), Is.EqualTo(FdbValueCheckResult.Unknown));
+									Assert.That(tr.Context.GetValueChecksFromPreviousAttempt("unrelated"), Is.Empty);
+									Assert.That(tr.Context.PreviousError, Is.EqualTo(FdbError.NotCommitted), "Should emulate a 'not_committed'");
+									return false; // stop
+								default:
+									Assert.Fail("Should not execute more than twice!");
+									return false;
+							}
+						},
+						(tr, subspace) =>
+						{
+							// change
+							tr.Clear(subspace.Encode("AAA"));
+							// then check
+							tr.Context.AddValueCheck("fooCheck", subspace.Encode("AAA"), initialA);
+							return Task.CompletedTask;
+						},
+						shouldCommit: false
+					);
+				}
+			}
+		}
+
+		[Test]
+		public async Task Test_Value_Checks_Retries_On_Application_Exception()
+		{
+			// If we observe an application exception being thrown by the handler, normally we would stop the retry loop there.
+			// But if there was at least one failed value-check, we HAVE to retry because it is possible that the application threw due to some invalid assumption.
+			// Normally, any layer that used cached data will observe the failed check, and re-validate the cache.
+			// If the application error was caused by this stale data, then it should not throw in the new attempt.
+			// If the application error was caused by something completely unrelated, then it should throw again, and we should NOT retry
+
+			using (var db = await OpenTestDatabaseAsync())
+			{
+				var location = db.Root.ByKey("value_checks");
+
+				db.SetDefaultLogHandler(log => Log(log.GetTimingsReport(true)));
+
+				for (int i = 0; i < 15; i++)
+				{
+
+					if (i % 5 == 0)
+					{
+						Log("Clear the database...");
+
+						await CleanLocation(db, location);
+
+						// if the application code fails we have to make sure that if there was also a failed value-check, the handler retries again!
+
+						await db.WriteAsync(async tr =>
+						{
+							var subspace = (await location.Resolve(tr))!;
+							tr.Set(subspace.Encode("Foo"), Slice.FromStringAscii("NotReady"));
+							// Bar does not exist
+						}, this.Cancellation);
+					}
+
+					var task = db.ReadWriteAsync(async tr =>
+					{
+						//note: this subspace does not use the DL so it does not introduce any value checks!
+						var subspace = await location.Resolve(tr);
+
+						if (tr.Context.TestValueCheckFromPreviousAttempt("foo") == FdbValueCheckResult.Failed)
+						{
+							Log("# Oh, no! 'foo' check failed previously, check and initialze the db if required...");
+
+							tr.Annotate("APP: doing the actual work to check the state of the db, and initialize the schema if required...");
+
+							// read foo, and update the Bar key accordingly
+							var foo = await tr.GetAsync(subspace.Encode("Foo"));
+							if (foo.ToStringAscii() == "NotReady")
+							{
+								tr.Annotate("APP: initializing the database!");
+								Log("# Moving 'foo' from Value1 to Value2 and setting Bar...");
+								tr.Set(subspace.Encode("Foo"), Slice.FromStringAscii("Ready"));
+								tr.Set(subspace.Encode("Bar"), Slice.FromStringAscii("Something"));
+							}
+						}
+						else
+						{
+							tr.Annotate("APP: I'm feeling lucky! Let's assume the db is already initialized");
+							tr.Context.AddValueCheck("foo", subspace.Encode("Foo"), Slice.FromStringAscii("Ready"));
+						}
+						// let's that if "Foo" was equal to "Value2", then "Bar" SHOULD exist
+						// We simulate some application code reading the "Bar" value, and then finding out that it does not exist
+
+						tr.Annotate("APP: The value of 'Bar' better not be empty...");
+						var x = await tr.GetAsync(subspace.Encode("Bar"));
+						Log($"On attempt #{tr.Context.Retries} we found the value of Bar to be '{x}'");
+						if (x.IsNull)
+						{
+							tr.Annotate("APP: UH OH... something's wrong! let's throw an exception!!");
+							throw new InvalidOperationException("Oh noes! There is some corruption in the database!");
+						}
+
+						return x.ToStringAscii();
+					}, this.Cancellation);
+
+					Assert.That(async () => await task, Is.EqualTo("Something"));
+
+				}
+
+			}
 		}
 	}
 }

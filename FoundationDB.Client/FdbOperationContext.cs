@@ -29,15 +29,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace FoundationDB.Client
 {
 	using System;
+	using System.Buffers;
 	using System.Collections.Generic;
 	using System.Diagnostics;
 	using System.Diagnostics.CodeAnalysis;
 	using System.Globalization;
+	using System.Linq;
 	using System.Runtime.CompilerServices;
 	using System.Threading;
 	using System.Threading.Tasks;
 	using Doxense.Diagnostics.Contracts;
 	using Doxense.Threading.Tasks;
+	using FoundationDB.Filters.Logging;
 	using JetBrains.Annotations;
 
 	/// <summary>
@@ -438,6 +441,247 @@ namespace FoundationDB.Client
 
 		#endregion
 
+		#region Value Checkers...
+
+		/// <summary>List of outstanding checks that must match in order for the transaction to commit successfully</summary>
+		private List<(Slice Key, Slice ExpectedValue, string Tag, Task<(FdbValueCheckResult Result, Slice Actual)> ActualValue)>? ValueChecks { get; set; }
+
+		/// <summary>Return the result of all value checks performed with the specified tag in the previous attempt</summary>
+		/// <param name="tag">Tag that was passed to a call to <see cref="AddValueCheck"/> (or similar overloads) in the previous attempt of this context, that failed (meaning the expected value did not match with the database)</param>
+		/// <returns>Combined result of all value checks with this tag.
+		/// If <see cref="FdbValueCheckResult.Unknown"/> no check was performed with this tag in the previous attempt, and the application is left to decide the odds of the value having changed in the database.</returns>
+		/// If <see cref="FdbValueCheckResult.Failed"/> then at least on check with this tag failed, and there is a very high probability that the cached values have changed in the database.
+		/// If <see cref="FdbValueCheckResult.Success"/> then all checks with this tag passed, and there is a very low probability that the cached values have changed in the database.
+		/// <remarks>
+		/// The caller should use this as a hint about the likelyhood that previously cached data is invalid, and should be discarded.
+		/// Note that this method can fall victim to the ABA pattern, meaning that a subsquent read of the checked key could return the expected value (changed back to its original value by another transaction).
+		/// To reduce the chances of ABA, checked keys should only be updated using atomic increment operations, or use versionstamps if possible.
+		/// If you need to get more precise results about which key/value pair passed or failed, you can also call <see cref="GetValueChecksFromPreviousAttempt"/> with the same tag, which will returns all key/value pairs with their individual results.
+		/// </remarks>
+		public FdbValueCheckResult TestValueCheckFromPreviousAttempt(string tag)
+		{
+			Dictionary<string, (FdbValueCheckResult Result, List<(FdbValueCheckResult, Slice, Slice, Slice)>)>? checks;
+			lock (this)
+			{
+				checks = this.FailedValueCheckTags;
+			}
+			return checks != null && checks.TryGetValue(tag, out var check) ? check.Result : FdbValueCheckResult.Unknown;
+		}
+
+		/// <summary>Return the list of all value-checks performed in the previous transaction attempt</summary>
+		/// <param name="tag">If not-null, only return the checks with the specified tag.</param>
+		/// <param name="result">If not-null, only return the checks with the specified result</param>
+		/// <returns>List of value-checks that match the specified filters.</returns>
+		public List<(string Tag, FdbValueCheckResult Result, Slice Key, Slice Expected, Slice Actual)> GetValueChecksFromPreviousAttempt(string? tag = null, FdbValueCheckResult? result = null)
+		{
+			Dictionary<string, (FdbValueCheckResult Result, List<(FdbValueCheckResult Result, Slice Key, Slice Expected, Slice Actual)> Checks)>? checks;
+			lock (this)
+			{
+				checks = this.FailedValueCheckTags;
+			}
+
+			var res = new List<(string Tag, FdbValueCheckResult Result, Slice Key, Slice Expected, Slice Actual)>();
+			if (checks != null)
+			{
+				foreach (var kv in checks)
+				{
+					if (tag == null || tag == kv.Key)
+					{
+						foreach (var item in kv.Value.Checks)
+						{
+							if (result == null || item.Result == result)
+							{
+								res.Add((kv.Key, item.Result, item.Key, item.Expected, item.Actual));
+							}
+						}
+					}
+				}
+			}
+			return res;
+		}
+
+		/// <summary>Contains the tags of all the failed value checks from the previous attempt</summary>
+		private Dictionary<string, (FdbValueCheckResult Result, List<(FdbValueCheckResult Result, Slice Key, Slice Expected, Slice Actual)>)>? FailedValueCheckTags { get; set; }
+
+		/// <summary>Add a check on the value of the key, that will be resolved before the transaction is able to commit</summary>
+		/// <param name="tag">Application-provided tag that can be used later to decide which layer failed the check.</param>
+		/// <param name="key">Key to check</param>
+		/// <param name="expectedValue">Expected value of the key. A value of <see cref="Slice.Nil"/> means the key is expected to NOT exist.</param>
+		/// <remarks>
+		/// If key does not have the expected value, the transaction will fail to commit, with an <see cref="FdbError.NotCommitted"/> error (simulating a conflict), which should trigger a retry,
+		/// and a call to <see cref="TestValueCheckFromPreviousAttempt"/>(<paramref name="tag"/>) will return <see cref="FdbValueCheckResult.Failed"/> for the next iteration of the retry-loop.
+		/// Any change to the value of the key _after_ this call, in the same transaction, will not be seen by this check. Only the value seen by this transaction at call time is considered.
+		/// </remarks>
+		public void AddValueCheck(string tag, Slice key, Slice expectedValue)
+		{
+			Contract.NotNullOrEmpty(tag, nameof(tag));
+
+			var tr = this.Transaction;
+			if (tr == null) throw new InvalidOperationException();
+			var task = tr.CheckValueAsync(key.Span, expectedValue);
+
+			lock (this)
+			{
+				(this.ValueChecks ??= new List<(Slice, Slice, string, Task<(FdbValueCheckResult, Slice)>)>())
+					.Add((key, expectedValue, tag, task));
+			}
+		}
+
+		/// <summary>Add a check on the values of one or more keys, that will be resolved before the transaction is able to commit</summary>
+		/// <param name="tag">Application-provided tag that can be used later to decide which layer failed the check.</param>
+		/// <param name="items">List of keys to check, and their expected values. A value of <see cref="Slice.Nil"/> means the corresponding key is expected to NOT exist.</param>
+		/// <remarks>
+		/// If any of the keys does not have the expected value, the transaction will fail to commit, with an <see cref="FdbError.NotCommitted"/> error (simulating a conflict), which should trigger a retry,
+		/// and a call to <see cref="TestValueCheckFromPreviousAttempt"/>(<paramref name="tag"/>) will return <see cref="FdbValueCheckResult.Failed"/> for the next iteration of the retry-loop.
+		/// Any change to the value of these keys _after_ this call, in the same transaction, will not be seen by this check. Only values seen by this transaction at call time are considered.
+		/// </remarks>
+		public void AddValueChecks(string tag, IEnumerable<KeyValuePair<Slice, Slice>> items)
+		{
+			Contract.NotNull(items, nameof(items));
+			AddValueChecks(tag, (items as KeyValuePair<Slice, Slice>[] ?? items.ToArray()).AsSpan());
+		}
+
+		/// <summary>Add a check on the values of one or more keys, that will be resolved before the transaction is able to commit</summary>
+		/// <param name="tag">Application-provided tag that can be used later to decide which layer failed the check.</param>
+		/// <param name="items">List of keys to check, and their expected values. A value of <see cref="Slice.Nil"/> means the corresponding key is expected to NOT exist.</param>
+		/// <remarks>
+		/// If any of the keys does not have the expected value, the transaction will fail to commit, with an <see cref="FdbError.NotCommitted"/> error (simulating a conflict), which should trigger a retry,
+		/// and a call to <see cref="TestValueCheckFromPreviousAttempt"/>(<paramref name="tag"/>) will return <see cref="FdbValueCheckResult.Failed"/> for the next iteration of the retry-loop.
+		/// Any change to the value of these keys _after_ this call, in the same transaction, will not be seen by this check. Only values seen by this transaction at call time are considered.
+		/// </remarks>
+		public void AddValueChecks(string tag, KeyValuePair<Slice, Slice>[] items)
+		{
+			Contract.NotNull(items, nameof(items));
+			AddValueChecks(tag, items.AsSpan());
+		}
+
+		/// <summary>Add a check on the values of one or more keys, that will be resolved before the transaction is able to commit</summary>
+		/// <param name="tag">Application-provided tag that can be used later to decide which layer failed the check.</param>
+		/// <param name="items">List of keys to check, and their expected values. A value of <see cref="Slice.Nil"/> means the corresponding key is expected to NOT exist.</param>
+		/// <remarks>
+		/// If any of the keys does not have the expected value, the transaction will fail to commit, with an <see cref="FdbError.NotCommitted"/> error (simulating a conflict), which should trigger a retry,
+		/// and a call to <see cref="TestValueCheckFromPreviousAttempt"/>(<paramref name="tag"/>) will return <see cref="FdbValueCheckResult.Failed"/> for the next iteration of the retry-loop.
+		/// Any change to the value of these keys _after_ this call, in the same transaction, will not be seen by this check. Only values seen by this transaction at call time are considered.
+		/// </remarks>
+		public void AddValueChecks(string tag, ReadOnlySpan<KeyValuePair<Slice, Slice>> items)
+		{
+			var tr = this.Transaction;
+			if (tr == null) throw new InvalidOperationException("Transaction is not in a valid state.");
+
+			// quick paths...
+			if (items.Length == 0) return;
+			if (items.Length == 1)
+			{
+				AddValueCheck(tag, items[0].Key, items[0].Value);
+				return;
+			}
+
+			var taskBuffer = ArrayPool<Task<(FdbValueCheckResult, Slice)>>.Shared.Rent(items.Length);
+			try
+			{
+				for (int i = 0; i < items.Length; i++)
+				{
+					taskBuffer[i] = tr.CheckValueAsync(items[i].Key.Span, items[i].Value);
+				}
+
+				lock (this)
+				{
+					var checks = this.ValueChecks ??= new List<(Slice, Slice, string, Task<(FdbValueCheckResult Result, Slice Actual)>)>();
+					int capa = checked(checks.Count + items.Length);
+					if (capa > checks.Capacity) checks.Capacity = capa;
+					for (int i = 0; i < items.Length; i++)
+					{
+						checks.Add((items[i].Key, items[i].Value, tag, taskBuffer[i]));
+					}
+				}
+			}
+			finally
+			{
+				ArrayPool<Task<(FdbValueCheckResult, Slice)>>.Shared.Return(taskBuffer, clearArray: true);
+			}
+		}
+
+		private bool ObserveValueCheckResult(string tag, Slice key, Slice expectedValue, Slice actualResult, FdbValueCheckResult result)
+		{
+			var tags = (this.FailedValueCheckTags ??= new Dictionary<string, (FdbValueCheckResult Result, List<(FdbValueCheckResult, Slice, Slice, Slice)> Checks)>(StringComparer.Ordinal));
+
+			if (!tags.TryGetValue(tag, out (FdbValueCheckResult Result, List<(FdbValueCheckResult Result, Slice Key, Slice Expected, Slice Actual)> Checks) previous))
+			{
+				previous.Result = FdbValueCheckResult.Success;
+				previous.Checks = new List<(FdbValueCheckResult Result, Slice Key, Slice Expected, Slice Actual)>();
+			}
+
+			bool pass;
+			previous.Checks.Add((result, key, expectedValue, actualResult));
+			if (result == FdbValueCheckResult.Failed)
+			{
+				previous.Result = FdbValueCheckResult.Failed;
+				if (this.Transaction?.IsLogged() == true) this.Transaction.Annotate($"Failed value-check '{tag}' for {FdbKey.Dump(key)}: expected {expectedValue:V}, actual {actualResult:V}");
+				pass = false;
+			}
+			else
+			{
+				Contract.Assert(result == FdbValueCheckResult.Success);
+				pass = true;
+			}
+
+			tags[tag] = previous;
+
+			return pass;
+		}
+
+		private ValueTask<bool> ValidateValueChecks(bool ignoreFailedTasks)
+		{
+			List<(Slice, Slice, string, Task<(FdbValueCheckResult, Slice)>)>? checks;
+			lock (this)
+			{
+				checks = this.ValueChecks;
+				this.ValueChecks = null;
+			}
+
+			if (checks == null || checks.Count == 0) return new ValueTask<bool>(true);
+			return ValidateValueChecksSlow(checks, ignoreFailedTasks);
+		}
+
+		private async ValueTask<bool> ValidateValueChecksSlow(List<(Slice Key, Slice ExpectedValue, string Tag, Task<(FdbValueCheckResult Result, Slice Actual)> ActualValue)> checks, bool ignoreFailedTasks)
+		{
+			//note: even if it looks like we are sequentially await all tasks, by the time the first one is complete,
+			// the rest of the tasks will probably be already completed as well. Anyway, we need to inspect each individual task
+			// to check for any failed tasks anyway, so we can't use Task.WhenAll(...) here
+
+			if (this.Transaction?.IsLogged() == true) this.Transaction.Annotate($"Verifying {checks.Count} pending value-check(s)");
+
+			bool pass = true;
+			foreach (var check in checks)
+			{
+				(FdbValueCheckResult Result, Slice Actual) result;
+				try
+				{
+					result = await check.ActualValue.ConfigureAwait(false);
+				}
+				catch (FdbException) when (ignoreFailedTasks)
+				{
+					continue;
+				}
+				pass &= ObserveValueCheckResult(check.Tag, check.Key, check.ExpectedValue, result.Actual, result.Result);
+			}
+
+			if (this.Transaction?.IsLogged() == true)
+			{
+				this.Transaction.Annotate(pass ? "All value-checks passed" : "At least ony value-check failed!");
+			}
+
+			return pass;
+		}
+
+		[MethodImpl(MethodImplOptions.NoInlining)]
+		private static Exception FailValueCheck()
+		{
+			return new FdbException(FdbError.NotCommitted, "The value of the a key in the database did not match the expected value.");
+		}
+
+		#endregion
+
 		/// <summary>Execute a retry loop on this context</summary>
 		internal static async Task<TResult> ExecuteInternal<TState, TIntermediate, TResult>(FdbOperationContext context, [AllowNull] TState state, Delegate handler, Delegate? success)
 		{
@@ -469,6 +713,7 @@ namespace FoundationDB.Client
 					while (!context.Committed && !context.Cancellation.IsCancellationRequested)
 					{
 						bool hasResult = false;
+						bool hasRunValueChecks = false;
 						result = default!;
 
 						try
@@ -733,6 +978,14 @@ namespace FoundationDB.Client
 								break;
 							}
 
+							// make sure any pending value checks are completed and match the expected value!
+							context.FailedValueCheckTags?.Clear();
+							hasRunValueChecks = true;
+							if (!await context.ValidateValueChecks(ignoreFailedTasks: false))
+							{
+								throw FailValueCheck();
+							}
+
 							if (!trans.IsReadOnly)
 							{ // commit the transaction
 								await trans.CommitAsync().ConfigureAwait(false);
@@ -755,7 +1008,7 @@ namespace FoundationDB.Client
 								// => we will copy the result in both fields!
 								if (hasResult && typeof(TIntermediate) == typeof(TResult))
 								{
-									intermediate = (TIntermediate) (object?) result;
+									intermediate = (TIntermediate) (object) result!;
 								}
 
 								switch (success)
@@ -927,7 +1180,7 @@ namespace FoundationDB.Client
 							{
 								if (typeof(TResult) == typeof(TIntermediate))
 								{
-									result = (TResult) (object?) intermediate;
+									result = (TResult) (object) intermediate!;
 								}
 								else
 								{
@@ -949,6 +1202,16 @@ namespace FoundationDB.Client
 
 							if (Logging.On && Logging.IsVerbose) Logging.Verbose(string.Format(CultureInfo.InvariantCulture, "fdb: transaction {0} failed with error code {1}", trans.Id, e.Code));
 
+							if (!hasRunValueChecks)
+							{ // we need to resolve any check that would still have passed before the error
+
+								context.FailedValueCheckTags?.Clear();
+								if (!await context.ValidateValueChecks(ignoreFailedTasks: true))
+								{
+									// we don't override the original error, though!
+								}
+							}
+
 							bool shouldRethrow = false;
 							try
 							{
@@ -967,9 +1230,10 @@ namespace FoundationDB.Client
 
 							if (Logging.On && Logging.IsVerbose) Logging.Verbose(string.Format(CultureInfo.InvariantCulture, "fdb: transaction {0} can be safely retried", trans.Id));
 						}
-						catch (Exception)
+						catch (Exception e)
 						{
 							context.PreviousError = FdbError.UnknownError;
+							if (context.Transaction.IsLogged()) context.Transaction.Annotate($"Handler failed with error: [{e.GetType().Name}] {e.Message}");
 
 							// execute any state callbacks, if there are any
 							if (context.StateCallbacks != null)
@@ -977,7 +1241,33 @@ namespace FoundationDB.Client
 								await context.ExecuteHandlers(ref context.StateCallbacks, context, FdbTransactionState.Faulted).ConfigureAwait(false);
 							}
 
-							throw;
+							// if we have pending value-checks, we have to run them !
+							// => the exception thrown by the handler may be caused because of an invalid assumption on the value of a key,
+							// and we HAVE to run the handler again, to give a change to the layer code to realize that it needs to update any cached data
+							//REVIEW: TODO: how can we distinguish between errors that are caused by the bad assumption of a failed value check, and errors that are completely unrelated?
+
+							bool shouldThrow = true;
+							if (!hasRunValueChecks)
+							{
+								context.FailedValueCheckTags?.Clear();
+								if (!await context.ValidateValueChecks(ignoreFailedTasks: false))
+								{
+									try
+									{
+										await trans.OnErrorAsync(FdbError.NotCommitted).ConfigureAwait(false);
+									}
+									catch (FdbException e2)
+									{
+										if (context.Transaction?.IsLogged() == true) context.Transaction.Annotate("Handler failure MAY be due to a failed value-check, but no more attempt is possible!");
+										if (e2.Code != FdbError.NotCommitted) throw;
+									}
+									shouldThrow = false;
+									// note: technically we are after the "OnError" so any new comment will be seen as part of the next attempt..
+									if (context.Transaction?.IsLogged() == true) context.Transaction.Annotate($"Previous attempt failed because of the following failed value-check(s): {string.Join(", ", context.FailedValueCheckTags.Where(x => x.Value.Result == FdbValueCheckResult.Failed).Select(x => x.Key))}");
+								}
+							}
+
+							if (shouldThrow) throw;
 						}
 
 						// update the base time for the next attempt
@@ -1488,5 +1778,16 @@ namespace FoundationDB.Client
 		/// <summary>The last execution of the handler was aborted</summary>
 		Aborted,
 	}
+
+	public enum FdbValueCheckResult
+	{
+		/// <summary>There was no value-check performed with this tag in the previous attempt.</summary>
+		Unknown = 0,
+		/// <summary>All value-checks performed with this tag passed in the previous attempt.</summary>
+		Success = 1,
+		/// <summary>At least one value-check performed with this tag failed in the previous attempt.</summary>
+		Failed = 2,
+	}
+
 
 }

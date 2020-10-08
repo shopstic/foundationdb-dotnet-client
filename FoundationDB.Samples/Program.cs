@@ -45,9 +45,11 @@ namespace FoundationDB.Samples
 
 		static IFdbDatabase GetLoggedDatabase(IFdbDatabase db, StreamWriter stream, bool autoFlush = false)
 		{
-			if (stream == null) return db;
-
-			return new FdbLoggedDatabase(db, false, false, (tr) => { stream.WriteLine(tr.Log.GetTimingsReport(true)); if (autoFlush) stream.Flush(); });
+			if (stream != null)
+			{
+				db.SetDefaultLogHandler(log => { stream.WriteLine(log.GetTimingsReport(true)); if (autoFlush) stream.Flush(); });
+			}
+			return db;
 		}
 
 		public static void RunAsyncCommand(Func<IFdbDatabase, TextWriter, CancellationToken, Task> command)
@@ -126,7 +128,7 @@ namespace FoundationDB.Samples
 			bool stop = false;
 
 			string clusterFile = null;
-			var partition = FdbDirectoryPath.Empty;
+			var partition = FdbPath.Root;
 
 			int pStart = 0;
 			string startCommand = null;
@@ -144,7 +146,7 @@ namespace FoundationDB.Samples
 						}
 						case "P": case "p":
 						{
-							partition = FdbDirectoryPath.Parse(args[pStart + 1].Trim());
+							partition = FdbPath.Parse(args[pStart + 1].Trim());
 							pStart += 2;
 							break;
 						}

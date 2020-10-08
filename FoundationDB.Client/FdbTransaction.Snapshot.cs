@@ -33,6 +33,7 @@ namespace FoundationDB.Client
 	using System.Threading;
 	using System.Threading.Tasks;
 	using Doxense.Diagnostics.Contracts;
+	using FoundationDB.Filters.Logging;
 
 	/// <summary>Wraps an FDB_TRANSACTION handle</summary>
 	public partial class FdbTransaction
@@ -94,6 +95,7 @@ namespace FoundationDB.Client
 				throw new NotSupportedException("You cannot set the read version on the Snapshot view of a transaction");
 			}
 
+			/// <inheritdoc />
 			public Task<Slice> GetAsync(ReadOnlySpan<byte> key)
 			{
 				EnsureCanRead();
@@ -104,7 +106,7 @@ namespace FoundationDB.Client
 				if (Logging.On && Logging.IsVerbose) Logging.Verbose(this, "GetAsync", $"Getting value for '{key.ToString()}'");
 #endif
 
-				return m_parent.m_handler.GetAsync(key, snapshot: true, ct: m_parent.m_cancellation);
+				return m_parent.PerformGetOperation(key, snapshot: true);
 			}
 
 			public Task<Slice[]> GetValuesAsync(Slice[] keys)
@@ -119,7 +121,7 @@ namespace FoundationDB.Client
 				if (Logging.On && Logging.IsVerbose) Logging.Verbose(this, "GetValuesAsync", $"Getting batch of {keys.Length} values ...");
 #endif
 
-				return m_parent.m_handler.GetValuesAsync(keys, snapshot: true, ct: m_parent.m_cancellation);
+				return m_parent.PerformGetValuesOperation(keys, snapshot: true);
 			}
 
 			public Task<Slice> GetKeyAsync(KeySelector selector)
@@ -132,7 +134,7 @@ namespace FoundationDB.Client
 				if (Logging.On && Logging.IsVerbose) Logging.Verbose(this, "GetKeyAsync", $"Getting key '{selector.ToString()}'");
 #endif
 
-				return m_parent.m_handler.GetKeyAsync(selector, snapshot: true, ct: m_parent.m_cancellation);
+				return m_parent.PerformGetKeyOperation(selector, snapshot: true);
 			}
 
 			public Task<Slice[]> GetKeysAsync(KeySelector[] selectors)
@@ -148,7 +150,7 @@ namespace FoundationDB.Client
 				if (Logging.On && Logging.IsVerbose) Logging.Verbose(this, "GetKeysCoreAsync", $"Getting batch of {selectors.Length} keys ...");
 #endif
 
-				return m_parent.m_handler.GetKeysAsync(selectors, snapshot: true, ct: m_parent.m_cancellation);
+				return m_parent.PerformGetKeysOperation(selectors, snapshot: true);
 			}
 
 			public Task<FdbRangeChunk> GetRangeAsync(KeySelector beginInclusive, KeySelector endExclusive, FdbRangeOptions? options, int iteration)
@@ -182,10 +184,8 @@ namespace FoundationDB.Client
 				// The iteration value is only needed when in iterator mode, but then it should start from 1
 				if (iteration == 0) iteration = 1;
 
-				return m_parent.m_handler.GetRangeAsync(beginInclusive, endExclusive, limit, reverse, targetBytes, mode, read, iteration, snapshot: true, ct: m_parent.m_cancellation);
+				return m_parent.PerformGetRangeOperation(beginInclusive, endExclusive, snapshot: true, limit, reverse, targetBytes, mode, read, iteration);
 			}
-
-
 
 			public FdbRangeQuery<KeyValuePair<Slice, Slice>> GetRange(KeySelector beginInclusive, KeySelector endExclusive, FdbRangeOptions? options = null)
 			{
@@ -200,7 +200,21 @@ namespace FoundationDB.Client
 			public Task<string[]> GetAddressesForKeyAsync(ReadOnlySpan<byte> key)
 			{
 				EnsureCanRead();
-				return m_parent.m_handler.GetAddressesForKeyAsync(key, ct: m_parent.m_cancellation);
+				return m_parent.PerformGetAddressesForKeyOperation(key);
+			}
+
+			/// <inheritdoc />
+			public Task<(FdbValueCheckResult Result, Slice Actual)> CheckValueAsync(ReadOnlySpan<byte> key, Slice expected)
+			{
+				EnsureCanRead();
+
+				FdbKey.EnsureKeyIsValid(key);
+
+#if DEBUG
+				if (Logging.On && Logging.IsVerbose) Logging.Verbose(this, "ValueCheckAsync", $"Checking the value for '{key.ToString()}'");
+#endif
+
+				return m_parent.PerformValueCheckOperation(key, expected, snapshot: true);
 			}
 
 			void IFdbReadOnlyTransaction.Cancel()
@@ -260,6 +274,16 @@ namespace FoundationDB.Client
 			{
 				// NO-OP
 			}
+
+
+			public FdbTransactionLog? Log => m_parent.Log;
+
+			public bool IsLogged() => m_parent.IsLogged();
+
+			public void StopLogging() => m_parent.StopLogging();
+
+			public void Annotate(string comment) => m_parent.Annotate(comment);
+
 		}
 
 	}

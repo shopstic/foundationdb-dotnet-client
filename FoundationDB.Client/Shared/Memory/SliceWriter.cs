@@ -35,11 +35,11 @@ namespace Doxense.Memory
 	using System.Diagnostics;
 	using System.Globalization;
 	using System.Runtime.CompilerServices;
+	using System.Runtime.InteropServices;
 	using System.Text;
 	using Doxense.Diagnostics.Contracts;
-	using JetBrains.Annotations;
-	using System.Runtime.InteropServices;
 	using Doxense.Serialization;
+	using JetBrains.Annotations;
 
 	/// <summary>Slice buffer that emulates a pseudo-stream using a byte array that will automatically grow in size, if necessary</summary>
 	/// <remarks>This struct MUST be passed by reference!</remarks>
@@ -55,6 +55,7 @@ namespace Doxense.Memory
 		#region Private Members...
 
 		/// <summary>Buffer holding the data</summary>
+		/// <remarks>Consider calling <see cref="GetBufferUnsafe"/> to protect against this field being null.</remarks>
 		public byte[]? Buffer;
 
 		/// <summary>Position in the buffer ( == number of already written bytes)</summary>
@@ -197,8 +198,8 @@ namespace Doxense.Memory
 				if (until < 0) until += pos;
 
 				// bound check
-				if ((uint) from >= pos) throw ThrowHelper.ArgumentOutOfRangeException(nameof(beginInclusive), from, "The start index must be inside the bounds of the buffer.");
-				if ((uint) until > pos) throw ThrowHelper.ArgumentOutOfRangeException(nameof(endExclusive), until, "The end index must be inside the bounds of the buffer.");
+				if ((uint) from >= pos) throw ThrowHelper.ArgumentOutOfRangeException(nameof(beginInclusive), beginInclusive, "The start index must be inside the bounds of the buffer.");
+				if ((uint) until > pos) throw ThrowHelper.ArgumentOutOfRangeException(nameof(endExclusive), endExclusive, "The end index must be inside the bounds of the buffer.");
 
 				// chop chop
 				int count = until - from;
@@ -215,6 +216,11 @@ namespace Doxense.Memory
 #endif
 
 		#endregion
+
+		/// <summary>Returns the underlying buffer holding the data</summary>
+		/// <remarks>This will never return until, unlike <see cref="Buffer"/> which can be null if the instance was never written to.</remarks>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public byte[] GetBufferUnsafe() => this.Buffer ?? Array.Empty<byte>();
 
 		/// <summary>Returns a byte array filled with the contents of the buffer</summary>
 		/// <remarks>The buffer is copied in the byte array. And change to one will not impact the other</remarks>
@@ -1471,13 +1477,12 @@ namespace Doxense.Memory
 				WriteVarStringUtf8(value);
 				return;
 			}
-			uint byteCount = checked((uint) encoding.GetByteCount(value));
-			if (byteCount == 0)
+			uint byteCount;
+			if (value == null || (byteCount = checked((uint) encoding.GetByteCount(value))) == 0)
 			{
 				WriteByte(0);
 				return;
 			}
-			Contract.Assert(value != null);
 			var buffer = EnsureBytes(byteCount + UnsafeHelpers.SizeOfVarBytes(byteCount));
 
 			// write the count
@@ -1504,12 +1509,12 @@ namespace Doxense.Memory
 			// - "Héllo" => { 0x06 'h' 0xC3 0xA9 'l' 'l' 'o' }
 
 			// We need to know the encoded size beforehand, because we need to write the size first!
-			int byteCount = Encoding.UTF8.GetByteCount(value);
-			if (byteCount == 0)
+			int byteCount;
+			if (value == null || (byteCount = Encoding.UTF8.GetByteCount(value)) == 0)
 			{ // nul or empty string
 				WriteByte(0);
 			}
-			else if (byteCount == value!.Length)
+			else if (byteCount == value.Length)
 			{ // ASCII!
 				WriteVarAsciiInternal(value);
 			}
@@ -1540,7 +1545,7 @@ namespace Doxense.Memory
 			}
 			else
 			{
-				WriteVarAsciiInternal(value!);
+				WriteVarAsciiInternal(value);
 			}
 		}
 
@@ -1633,7 +1638,7 @@ namespace Doxense.Memory
 
 			// In order to estimate the required capacity, we try to guess for very small strings, but compute the actual value for larger strings,
 			// so that we don't waste to much memory (up to 6x the string length in the worst case scenario)
-			var buffer = EnsureBytes(value!.Length > 128 ? encoding.GetByteCount(value) : encoding.GetMaxByteCount(value.Length));
+			var buffer = EnsureBytes(value.Length > 128 ? encoding.GetByteCount(value) : encoding.GetMaxByteCount(value.Length));
 
 			int p = this.Position;
 			int n = encoding.GetBytes(value, 0, value.Length, buffer, p);
@@ -1650,7 +1655,7 @@ namespace Doxense.Memory
 
 			// In order to estimate the required capacity, we try to guess for very small strings, but compute the actual value for larger strings,
 			// so that we don't waste to much memory (up to 6x the string length in the worst case scenario)
-			var buffer = EnsureBytes(value!.Length > 128
+			var buffer = EnsureBytes(value.Length > 128
 				? Encoding.UTF8.GetByteCount(value)
 				: Encoding.UTF8.GetMaxByteCount(value.Length));
 
@@ -1696,12 +1701,6 @@ namespace Doxense.Memory
 			}
 		}
 
-		[Pure, MethodImpl(MethodImplOptions.NoInlining)]
-		private static Exception FailInvalidUtf8CodePoint()
-		{
-			return new DecoderFallbackException("Failed to encode invalid Unicode CodePoint into UTF-8");
-		}
-
 		/// <summary>Write a string that only contains ASCII</summary>
 		/// <param name="value">String with characters only in the 0..127 range</param>
 		/// <remarks>Faster than <see cref="WriteString(string, Encoding)"/> when writing Magic Strings or ascii keywords</remarks>
@@ -1710,7 +1709,7 @@ namespace Doxense.Memory
 		{
 			if (string.IsNullOrEmpty(value)) return 0;
 
-			var buffer = EnsureBytes(value!.Length);
+			var buffer = EnsureBytes(value.Length);
 			int p = this.Position;
 			foreach (var c in value)
 			{

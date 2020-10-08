@@ -33,6 +33,7 @@ namespace FoundationDB.Client
 	using System.Collections.Generic;
 	using System.Threading;
 	using System.Threading.Tasks;
+	using FoundationDB.Filters.Logging;
 
 	/// <summary>Transaction that allows read operations</summary>
 	[PublicAPI]
@@ -133,6 +134,17 @@ namespace FoundationDB.Client
 		[Pure, LinqTunnel]
 		FdbRangeQuery<TResult> GetRange<TResult>(KeySelector beginInclusive, KeySelector endExclusive, Func<KeyValuePair<Slice, Slice>, TResult> selector, FdbRangeOptions? options = null);
 
+		/// <summary>Check if the value from the database snapshot represented by the current transaction is equal to some <paramref name="expected"/> value.</summary>
+		/// <param name="key">Key to be looked up in the database</param>
+		/// <param name="expected">Expected value for this key</param>
+		/// <returns>Task that will return the value of the key if it is found, Slice.Nil if the key does not exist, or an exception</returns>
+		/// <exception cref="System.ArgumentException">If the <paramref name="key"/> is null</exception>
+		/// <exception cref="System.OperationCanceledException">If the cancellation token is already triggered</exception>
+		/// <exception cref="System.ObjectDisposedException">If the transaction has already been completed</exception>
+		/// <exception cref="System.InvalidOperationException">If the operation method is called from the Network Thread</exception>
+		/// <returns>Return the result of the check, plus the actual value of the key.</returns>
+		Task<(FdbValueCheckResult Result, Slice Actual)> CheckValueAsync(ReadOnlySpan<byte> key, Slice expected);
+
 		/// <summary>Returns a list of public network addresses as strings, one for each of the storage servers responsible for storing <paramref name="key"/> and its associated value</summary>
 		/// <param name="key">Name of the key whose location is to be queried.</param>
 		/// <returns>Task that will return an array of strings, or an exception</returns>
@@ -218,6 +230,27 @@ namespace FoundationDB.Client
 		/// If the maximum retry delay is less than the current retry delay of the transaction, then the current retry delay will be clamped to the maximum retry delay.
 		/// </summary>
 		int MaxRetryDelay { get; set; }
+
+		/// <summary>Log of all operations performed on this transaction (if logging was enabled on the database or transaction)</summary>
+		FdbTransactionLog? Log { get; }
+
+		/// <summary>Return <c>true</c> if logging is enabled on this transaction</summary>
+		/// <remarks>
+		/// If logging is enabled, the transaction will track all the operations performed by this transaction until it completes.
+		/// The log can be accessed via the <see cref="Log"/> property.
+		/// Comments can be added via the <see cref="Annotate"/> method.
+		/// </remarks>
+		bool IsLogged();
+
+		/// <summary>Add a comment to the transaction log</summary>
+		/// <param name="comment">Line of text that will be added to the log</param>
+		/// <remarks>This method does nothing if logging is disabled. To prevent unnecessary allocations, you may check <see cref="IsLogged"/> first</remarks>
+		/// <example><code>if (tr.IsLogged()) tr.Annonate($"Reticulated {splines.Count} splines");</code></example>
+		void Annotate(string comment);
+
+		/// <summary>If logging was previously enabled on this transaction, clear the log and stop logging any new operations</summary>
+		/// <remarks>Any log handler attached to this transaction will not be called</remarks>
+		void StopLogging();
 
 	}
 

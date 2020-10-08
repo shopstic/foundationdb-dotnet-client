@@ -39,6 +39,7 @@ namespace FoundationDB.Client
 	using FoundationDB.Client.Core;
 	using FoundationDB.Client.Native;
 	using FoundationDB.DependencyInjection;
+	using FoundationDB.Filters.Logging;
 
 	/// <summary>FoundationDB database session handle</summary>
 	/// <remarks>An instance of this class can be used to create any number of concurrent transactions that will read and/or write to this particular database.</remarks>
@@ -185,6 +186,11 @@ namespace FoundationDB.Client
 				if (m_defaultTimeout != 0) trans.Timeout = m_defaultTimeout;
 				if (m_defaultRetryLimit != 0) trans.RetryLimit = m_defaultRetryLimit;
 				if (m_defaultMaxRetryDelay != 0) trans.MaxRetryDelay = m_defaultMaxRetryDelay;
+				if (this.DefaultLogHandler != null)
+				{
+					trans.SetLogHandler(this.DefaultLogHandler, this.DefaultLogOptions);
+				}
+
 				// flag as ready
 				trans.State = FdbTransaction.STATE_READY;
 				return trans;
@@ -233,6 +239,16 @@ namespace FoundationDB.Client
 			//TODO: compare removed value with the specified transaction to ensure it was the correct one?
 		}
 
+		public void SetDefaultLogHandler(Action<FdbTransactionLog> handler, FdbLoggingOptions options = default)
+		{
+			this.DefaultLogHandler = handler;
+			this.DefaultLogOptions = options;
+		}
+
+		private Action<FdbTransactionLog> DefaultLogHandler { get; set; }
+
+		private FdbLoggingOptions DefaultLogOptions { get; set; }
+
 		#endregion
 
 		#region Transactionals...
@@ -251,6 +267,9 @@ namespace FoundationDB.Client
 
 		#region IFdbReadOnlyRetryable...
 
+		/// <summary>Empty type that is used to prevent ambiguity when switching on delegate types</summary>
+		private struct Nothing { }
+
 		private Task<TResult> ExecuteReadOnlyAsync<TState, TIntermediate, TResult>(TState state, Delegate handler, Delegate? success, CancellationToken ct)
 		{
 			Contract.NotNull(handler, nameof(handler));
@@ -264,19 +283,19 @@ namespace FoundationDB.Client
 		/// <inheritdoc/>
 		public Task ReadAsync(Func<IFdbReadOnlyTransaction, Task> handler, CancellationToken ct)
 		{
-			return ExecuteReadOnlyAsync<object?, object?, object?>(null, handler, null, ct);
+			return ExecuteReadOnlyAsync<Nothing, Nothing, Nothing>(default(Nothing), handler, null, ct);
 		}
 
 		/// <inheritdoc/>
 		public Task ReadAsync<TState>(TState state, Func<IFdbReadOnlyTransaction, TState, Task> handler, CancellationToken ct)
 		{
-			return ExecuteReadOnlyAsync<TState, object?, object?>(state, handler, null, ct);
+			return ExecuteReadOnlyAsync<TState, Nothing, Nothing>(state, handler, null, ct);
 		}
 
 		/// <inheritdoc/>
 		public Task<TResult> ReadAsync<TResult>(Func<IFdbReadOnlyTransaction, Task<TResult>> handler, CancellationToken ct)
 		{
-			return ExecuteReadOnlyAsync<object?, TResult, TResult>(null, handler, null, ct);
+			return ExecuteReadOnlyAsync<Nothing, TResult, TResult>(default(Nothing), handler, null, ct);
 		}
 
 		/// <inheritdoc/>
@@ -288,19 +307,19 @@ namespace FoundationDB.Client
 		/// <inheritdoc/>
 		public Task<TResult> ReadAsync<TResult>(Func<IFdbReadOnlyTransaction, Task<TResult>> handler, Action<IFdbReadOnlyTransaction, TResult> success, CancellationToken ct)
 		{
-			return ExecuteReadOnlyAsync<object?, TResult, TResult>(null, handler, success, ct);
+			return ExecuteReadOnlyAsync<Nothing, TResult, TResult>(default(Nothing), handler, success, ct);
 		}
 
 		/// <inheritdoc/>
 		public Task<TResult> ReadAsync<TIntermediate, TResult>(Func<IFdbReadOnlyTransaction, Task<TIntermediate>> handler, Func<IFdbReadOnlyTransaction, TIntermediate, TResult> success, CancellationToken ct)
 		{
-			return ExecuteReadOnlyAsync<object?, TIntermediate, TResult>(null, handler, success, ct);
+			return ExecuteReadOnlyAsync<Nothing, TIntermediate, TResult>(default(Nothing), handler, success, ct);
 		}
 
 		/// <inheritdoc/>
 		public Task<TResult> ReadAsync<TIntermediate, TResult>(Func<IFdbReadOnlyTransaction, Task<TIntermediate>> handler, Func<IFdbReadOnlyTransaction, TIntermediate, Task<TResult>> success, CancellationToken ct)
 		{
-			return ExecuteReadOnlyAsync<object?, TIntermediate, TResult>(null, handler, success, ct);
+			return ExecuteReadOnlyAsync<Nothing, TIntermediate, TResult>(default(Nothing), handler, success, ct);
 		}
 
 		/// <inheritdoc/>

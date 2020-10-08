@@ -158,7 +158,7 @@ namespace Doxense.Collections.Tuples.Encoding
 				next.Add(writer.Output.Position);
 			}
 
-			return Slice.SplitIntoSegments(writer.Output.Buffer ?? Array.Empty<byte>(), 0, next);
+			return Slice.SplitIntoSegments(writer.Output.GetBufferUnsafe(), 0, next);
 		}
 
 		/// <summary>Pack a sequence of N-tuples, all sharing the same buffer</summary>
@@ -186,7 +186,7 @@ namespace Doxense.Collections.Tuples.Encoding
 				next.Add(writer.Output.Position);
 			}
 
-			return Slice.SplitIntoSegments(writer.Output.Buffer ?? Array.Empty<byte>(), 0, next);
+			return Slice.SplitIntoSegments(writer.Output.GetBufferUnsafe(), 0, next);
 		}
 
 		public static Slice[] Pack<TElement, TTuple>(Slice prefix, TElement[] elements, Func<TElement, TTuple> transform)
@@ -215,7 +215,7 @@ namespace Doxense.Collections.Tuples.Encoding
 				}
 			}
 
-			return Slice.SplitIntoSegments(writer.Output.Buffer ?? Array.Empty<byte>(), 0, next);
+			return Slice.SplitIntoSegments(writer.Output.GetBufferUnsafe(), 0, next);
 		}
 
 		public static Slice[] Pack<TElement, TTuple>(Slice prefix, IEnumerable<TElement> elements, Func<TElement, TTuple> transform)
@@ -247,7 +247,7 @@ namespace Doxense.Collections.Tuples.Encoding
 				}
 			}
 
-			return Slice.SplitIntoSegments(writer.Output.Buffer ?? Array.Empty<byte>(), 0, next);
+			return Slice.SplitIntoSegments(writer.Output.GetBufferUnsafe(), 0, next);
 		}
 
 		// With prefix...
@@ -636,7 +636,7 @@ namespace Doxense.Collections.Tuples.Encoding
 				next.Add(writer.Output.Position);
 			}
 
-			return Slice.SplitIntoSegments(writer.Output.Buffer ?? Array.Empty<byte>(), 0, next);
+			return Slice.SplitIntoSegments(writer.Output.GetBufferUnsafe(), 0, next);
 		}
 
 		public static Slice[] EncodeKeys<T>(params T[] keys)
@@ -668,7 +668,7 @@ namespace Doxense.Collections.Tuples.Encoding
 				next.Add(writer.Output.Position);
 			}
 
-			return Slice.SplitIntoSegments(writer.Output.Buffer ?? Array.Empty<byte>(), 0, next);
+			return Slice.SplitIntoSegments(writer.Output.GetBufferUnsafe(), 0, next);
 		}
 
 		/// <summary>Merge an array of elements, all sharing the same buffer</summary>
@@ -709,7 +709,7 @@ namespace Doxense.Collections.Tuples.Encoding
 				next.Add(writer.Output.Position);
 			}
 
-			return Slice.SplitIntoSegments(writer.Output.Buffer ?? Array.Empty<byte>(), 0, next);
+			return Slice.SplitIntoSegments(writer.Output.GetBufferUnsafe(), 0, next);
 		}
 
 		/// <summary>Pack a sequence of keys with a same prefix, all sharing the same buffer</summary>
@@ -799,7 +799,7 @@ namespace Doxense.Collections.Tuples.Encoding
 		/// <typeparam name="T1">Type of the single value in the decoded tuple</typeparam>
 		/// <param name="packedKey">Slice that should contain the packed representation of a tuple with a single element</param>
 		/// <param name="tuple">Receives the decoded tuple</param>
-		/// <remarks>Throws an exception if the tuple is empty of has more than one element.</remarks>
+		/// <remarks>Throws an exception if the tuple is empty or has more than one element.</remarks>
 		public static void DecodeKey<T1>(Slice packedKey, out ValueTuple<T1> tuple)
 		{
 			if (packedKey.IsNullOrEmpty) throw new InvalidOperationException("Cannot unpack a single value out of an empty tuple");
@@ -808,6 +808,23 @@ namespace Doxense.Collections.Tuples.Encoding
 			if (slice.IsNull) throw new InvalidOperationException("Failed to unpack singleton tuple");
 
 			tuple = new ValueTuple<T1>(TuplePacker<T1>.Deserialize(slice));
+		}
+
+		/// <summary>Unpack the value of a singleton tuple</summary>
+		/// <typeparam name="T1">Type of the single value in the decoded tuple</typeparam>
+		/// <param name="packedKey">Slice that should contain the packed representation of a tuple with a single element</param>
+		/// <param name="item">Receives the decoded value</param>
+		/// <return>False if if the tuple is empty, or has more than one element; otherwise, false.</return>
+		public static bool TryDecodeKey<T1>(Slice packedKey, out T1 item)
+		{
+			if (packedKey.IsNullOrEmpty || !TuplePackers.TryUnpackSingle(packedKey, out var slice))
+			{
+				item = default!;
+				return false;
+			}
+
+			item = TuplePacker<T1>.Deserialize(slice);
+			return true;
 		}
 
 		public static void DecodeKey<T1>(ref TupleReader reader, out T1 item1)
@@ -969,7 +986,13 @@ namespace Doxense.Collections.Tuples.Encoding
 				return false;
 			}
 
-			var slice = TupleParser.ParseNext(ref input);
+			(var slice, var error) = TupleParser.ParseNext(ref input);
+			if (error != null)
+			{
+				value = default!;
+				return false;
+			}
+
 			value = TuplePacker<T>.Deserialize(slice);
 			return true;
 		}
@@ -996,6 +1019,11 @@ namespace Doxense.Collections.Tuples.Encoding
 				key = !reader.HasMore
 					? default! //BUGBUG
 					: TuPack.DecodeKey<T>(reader.ReadToEnd())!;
+			}
+
+			public bool TryReadKeyFrom(ref SliceReader reader, [MaybeNull] out T key)
+			{
+				return TuPack.TryDecodeKey<T>(reader.ReadToEnd(), out key);
 			}
 
 			public Slice EncodeValue(T key)
@@ -1040,6 +1068,26 @@ namespace Doxense.Collections.Tuples.Encoding
 				key.Item1 = t.Get<T1>(0)!;
 				key.Item2 = count == 2 ? t.Get<T2>(1)! : default!;
 			}
+
+			public override bool TryReadKeyPartsFrom(ref SliceReader reader, int count, out (T1, T2) key)
+			{
+				if (count != 1 & count != 2)
+				{
+					key = default;
+					return false;
+				}
+
+				if (!TuPack.TryUnpack(reader.ReadToEnd(), out var t) || t.Count != count)
+				{
+					key = default;
+					return false;
+				}
+
+				key.Item1 = t.Get<T1>(0)!;
+				key.Item2 = count == 2 ? t.Get<T2>(1)! : default!;
+				return true;
+			}
+
 		}
 
 		internal class CompositeEncoder<T1, T2, T3> : CompositeKeyEncoder<T1, T2, T3>
@@ -1072,6 +1120,27 @@ namespace Doxense.Collections.Tuples.Encoding
 				key.Item2 = count >= 2 ? t.Get<T2>(1)! : default!;
 				key.Item3 = count >= 3 ? t.Get<T3>(2)! : default!;
 			}
+
+			public override bool TryReadKeyPartsFrom(ref SliceReader reader, int count, out (T1, T2, T3) key)
+			{
+				if (count < 1 | count > 3)
+				{
+					key = default;
+					return false;
+				}
+
+				if (!TuPack.TryUnpack(reader.ReadToEnd(), out var t) || t.Count != count)
+				{
+					key = default;
+					return false;
+				}
+
+				key.Item1 = t.Get<T1>(0)!;
+				key.Item2 = count >= 2 ? t.Get<T2>(1)! : default!;
+				key.Item3 = count >= 3 ? t.Get<T3>(2)! : default!;
+				return true;
+			}
+
 		}
 
 		internal class CompositeEncoder<T1, T2, T3, T4> : CompositeKeyEncoder<T1, T2, T3, T4>
@@ -1106,6 +1175,28 @@ namespace Doxense.Collections.Tuples.Encoding
 				key.Item3 = count >= 3 ? t.Get<T3>(2)! : default!;
 				key.Item4 = count >= 4 ? t.Get<T4>(3)! : default!;
 			}
+
+			public override bool TryReadKeyPartsFrom(ref SliceReader reader, int count, out (T1, T2, T3, T4) key)
+			{
+				if (count < 1 || count > 4)
+				{
+					key = default;
+					return false;
+				}
+
+				if (!TuPack.TryUnpack(reader.ReadToEnd(), out var t) || t.Count != count)
+				{
+					key = default;
+					return false;
+				}
+
+				key.Item1 = t.Get<T1>(0)!;
+				key.Item2 = count >= 2 ? t.Get<T2>(1)! : default!;
+				key.Item3 = count >= 3 ? t.Get<T3>(2)! : default!;
+				key.Item4 = count >= 4 ? t.Get<T4>(3)! : default!;
+				return true;
+			}
+
 		}
 
 		internal class CompositeEncoder<T1, T2, T3, T4, T5> : CompositeKeyEncoder<T1, T2, T3, T4, T5>
@@ -1142,6 +1233,29 @@ namespace Doxense.Collections.Tuples.Encoding
 				key.Item4 = count >= 4 ? t.Get<T4>(3)! : default!;
 				key.Item5 = count >= 5 ? t.Get<T5>(4)! : default!;
 			}
+
+			public override bool TryReadKeyPartsFrom(ref SliceReader reader, int count, out (T1, T2, T3, T4, T5) key)
+			{
+				if (count < 1 || count > 5)
+				{
+					key = default;
+					return false;
+				}
+
+				if (!TuPack.TryUnpack(reader.ReadToEnd(), out var t) || t.Count != count)
+				{
+					key = default;
+					return false;
+				}
+
+				key.Item1 = t.Get<T1>(0)!;
+				key.Item2 = count >= 2 ? t.Get<T2>(1)! : default!;
+				key.Item3 = count >= 3 ? t.Get<T3>(2)! : default!;
+				key.Item4 = count >= 4 ? t.Get<T4>(3)! : default!;
+				key.Item5 = count >= 5 ? t.Get<T5>(4)! : default!;
+				return true;
+			}
+
 		}
 
 		internal class CompositeEncoder<T1, T2, T3, T4, T5, T6> : CompositeKeyEncoder<T1, T2, T3, T4, T5, T6>
@@ -1180,6 +1294,30 @@ namespace Doxense.Collections.Tuples.Encoding
 				key.Item5 = count >= 5 ? t.Get<T5>(4)! : default!;
 				key.Item6 = count >= 6 ? t.Get<T6>(5)! : default!;
 			}
+
+			public override bool TryReadKeyPartsFrom(ref SliceReader reader, int count, out (T1, T2, T3, T4, T5, T6) key)
+			{
+				if (count < 1 || count > 6)
+				{
+					key = default;
+					return false;
+				}
+
+				if (!TuPack.TryUnpack(reader.ReadToEnd(), out var t) || t.Count != count)
+				{
+					key = default;
+					return false;
+				}
+
+				key.Item1 = t.Get<T1>(0)!;
+				key.Item2 = count >= 2 ? t.Get<T2>(1)! : default!;
+				key.Item3 = count >= 3 ? t.Get<T3>(2)! : default!;
+				key.Item4 = count >= 4 ? t.Get<T4>(3)! : default!;
+				key.Item5 = count >= 5 ? t.Get<T5>(4)! : default!;
+				key.Item6 = count >= 6 ? t.Get<T6>(5)! : default!;
+				return true;
+			}
+
 		}
 
 		#endregion

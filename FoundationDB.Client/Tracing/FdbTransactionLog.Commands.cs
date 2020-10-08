@@ -33,6 +33,7 @@ namespace FoundationDB.Filters.Logging
 	using System.Diagnostics;
 	using System.Globalization;
 	using System.Text;
+	using System.Threading;
 	using System.Threading.Tasks;
 	using Doxense;
 	using Doxense.Diagnostics.Contracts;
@@ -816,9 +817,10 @@ namespace FoundationDB.Filters.Logging
 				if (this.Iteration > 1) s += ", #" + this.Iteration.ToString();
 				if (this.Options != null)
 				{
-					if ((this.Options.Limit ?? 0) > 0) s += ", limit(" + this.Options.Limit + ")";
+					if ((this.Options.Limit ?? 0) > 0) s += ", limit(" + this.Options.Limit.Value.ToString() + ")";
 					if (this.Options.Reverse == true) s += ", reverse";
-					if (this.Options.Mode.HasValue) s += ", " + this.Options.Mode;
+					if (this.Options.Mode.HasValue) s += ", " + this.Options.Mode.Value.ToString();
+					if (this.Options.Read.HasValue) s += ", " + this.Options.Read.Value.ToString();
 				}
 				return s;
 			}
@@ -835,6 +837,39 @@ namespace FoundationDB.Filters.Logging
 			}
 
 		}
+
+		public sealed class CheckValueCommand : Command<(FdbValueCheckResult Result, Slice Actual)>
+		{
+			/// <summary>Selector to a key in the database</summary>
+			public Slice Key { get; }
+
+			/// <summary>Selector to a key in the database</summary>
+			public Slice Expected { get; }
+
+			public override Operation Op => Operation.CheckValue;
+
+			public CheckValueCommand(Slice key, Slice expected)
+			{
+				this.Key = key;
+				this.Expected = expected;
+			}
+
+			public override int? ArgumentBytes => this.Key.Count + this.Expected.Count;
+
+			public override int? ResultBytes => !this.Result.HasValue ? default(int?) : this.Result.Value.Actual.Count;
+
+			public override string GetArguments(KeyResolver resolver)
+			{
+				return resolver.Resolve(this.Key) + " =?= " + (this.Expected.IsNull ? "<missing>" : this.Expected.ToString("V"));
+			}
+
+			protected override string Dump((FdbValueCheckResult Result, Slice Actual) value)
+			{
+				return value.Actual.IsNull ? $"<missing> [{value.Result}]" : $"{value.Actual:V} [{value.Result}]";
+			}
+
+		}
+
 
 		public sealed class GetVersionStampCommand : Command<VersionStamp>
 		{
@@ -880,6 +915,29 @@ namespace FoundationDB.Filters.Logging
 			{
 				return value?.ToString() ?? "<null>";
 			}
+		}
+
+		public sealed class GetApproximateSizeCommand : Command<long>
+		{
+			public override Operation Op => Operation.GetApproximateSize;
+		}
+
+		public sealed class GetAddressesForKeyCommand : Command<string[]>
+		{
+			/// <summary>Selector to a key in the database</summary>
+			public Slice Key { get; }
+
+			public override Operation Op => Operation.GetAddressesForKey;
+
+			public GetAddressesForKeyCommand(Slice key)
+			{
+				this.Key = key;
+			}
+
+			public override int? ArgumentBytes => this.Key.Count;
+
+			public override string GetArguments(KeyResolver resolver) => resolver.Resolve(this.Key);
+
 		}
 
 		public sealed class TouchMetadataVersionKeyCommand : AtomicCommand

@@ -159,19 +159,28 @@ namespace Doxense.Serialization.Encoders
 
 		#region Decoding...
 
-		/// <summary>Decode a binary slice into a tuple or arbitrary length</summary>
+		/// <summary>Decode a binary slice into a tuple of arbitrary length</summary>
 		/// <param name="packed">Binary slice produced by a previous call to <see cref="PackKey{TTuple}"/></param>
 		/// <returns>Tuple of any size (0 to N)</returns>
 		IVarTuple UnpackKey(Slice packed);
+
+		/// <summary>Attempt to decode a binary slice into a tuple of arbitrary length</summary>
+		/// <param name="packed">Binary slice produced by a previous call to <see cref="PackKey{TTuple}"/></param>
+		/// <param name="tuple">Tuple of any size (0 to N), if the method returns true</param>
+		/// <returns>True if <paramref name="packed"/> was a legal binary representation; otherwise, false.</returns>
+		bool TryUnpackKey(Slice packed, [NotNullWhen(true)] out IVarTuple? tuple);
 
 		/// <summary>Decode a binary slice containing exactly on element</summary>
 		/// <typeparam name="T">Expected type of the element</typeparam>
 		/// <param name="packed">Binary slice produced by a previous call to <see cref="EncodeKey{T1}"/> or <see cref="EncodeKey{T1}"/></param>
 		/// <returns>Tuple containing a single element, or an exception if the data is invalid, or the tuples has less or more than 1 element</returns>
+		[return: MaybeNull]
 		T DecodeKey<T>(Slice packed);
 
+		[return: MaybeNull]
 		T DecodeKeyFirst<T>(Slice packed);
 
+		[return: MaybeNull]
 		T DecodeKeyLast<T>(Slice packed);
 
 		/// <summary>Decode a binary slice containing exactly two elements</summary>
